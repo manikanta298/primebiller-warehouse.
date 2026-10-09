@@ -1,0 +1,64 @@
+/** Warehouse master rules shared by React, demo mode and Express. */
+import type { Godown, GodownInput, Item, ItemGodownStock } from "@/api/types";
+import { isValidGstin, stateFromGstin } from "./gst.ts";
+
+const STATE_CODES = new Set([
+  "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+  "21", "22", "23", "24", "26", "27", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "97",
+]);
+
+export function normaliseGodown(input: GodownInput): GodownInput {
+  return {
+    ...input,
+    code: input.code.trim().toUpperCase(), name: input.name.trim(), address: input.address.trim(),
+    stateCode: input.stateCode.trim(), gstin: input.gstin?.trim().toUpperCase() || undefined,
+    manager: input.manager.trim(),
+  };
+}
+
+export function godownProblems(input: GodownInput): string[] {
+  const d = normaliseGodown(input);
+  const problems: string[] = [];
+  if (!/^[A-Z0-9][A-Z0-9_-]{0,19}$/.test(d.code)) problems.push("Code must be 1–20 letters, numbers, underscores or hyphens");
+  if (!d.name || d.name.length > 120) problems.push("Warehouse name is required (max 120 characters)");
+  if (d.address.length > 400) problems.push("Address cannot exceed 400 characters");
+  if (d.manager.length > 120) problems.push("Manager cannot exceed 120 characters");
+  if (!STATE_CODES.has(d.stateCode)) problems.push("Choose a valid two-digit GST state code");
+  if (d.gstin) {
+    if (!isValidGstin(d.gstin)) problems.push("GSTIN is invalid");
+    else if (stateFromGstin(d.gstin) !== d.stateCode) problems.push("GSTIN state must match the warehouse state code");
+  }
+  if (d.defaultForSales && !d.active) problems.push("An inactive warehouse cannot be the default for sales");
+  return problems;
+}
+
+/** A zero net total can hide opposite-sign balances in different items. Check each row. */
+export function canDeactivateWarehouse(rows: Pick<ItemGodownStock, "onHand" | "held">[]): boolean {
+  return rows.every((r) => Number(r.onHand) === 0 && Number(r.held) === 0);
+}
+
+export type WarehouseStockSummary = { onHand: number; held: number; available: number; itemCount: number; stockValue: number };
+export function warehouseStockSummary(items: Item[], godownId: string): WarehouseStockSummary {
+  let onHand = 0, held = 0, itemCount = 0, stockValue = 0;
+  for (const item of items) {
+    const stock = item.stock.find((s) => s.godownId === godownId);
+    if (!stock) continue;
+    const qty = Number(stock.onHand), reserved = Number(stock.held);
+    if (qty !== 0 || reserved !== 0) itemCount++;
+    onHand += qty;
+    held += reserved;
+    stockValue += qty * item.costPrice;
+  }
+  return { onHand, held, available: onHand - held, itemCount, stockValue: Math.round(stockValue * 100) / 100 };
+}
+
+export type WarehouseActivityFilter = "all" | "active" | "inactive";
+export function filterWarehouses(rows: Godown[], query: string, activity: WarehouseActivityFilter): Godown[] {
+  const parts = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+  return rows.filter((g) => {
+    if (activity === "active" && !g.active) return false;
+    if (activity === "inactive" && g.active) return false;
+    const hay = [g.code, g.name, g.type, g.address, g.manager].join(" ").toLocaleLowerCase();
+    return parts.every((p) => hay.includes(p));
+  }).sort((a, b) => a.name.localeCompare(b.name) || a.code.localeCompare(b.code));
+}

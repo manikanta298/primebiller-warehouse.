@@ -1,0 +1,109 @@
+/** Stock-adjustment validation shared by the form, demo backend and Express API. */
+export type AdjDirection = "up" | "down";
+export type AdjReason = "damage" | "theft" | "expiry" | "found" | "correction" | "sample";
+
+export const ADJ_REASONS: { value: AdjReason; label: string; directions: AdjDirection[] }[] = [
+  { value: "damage", label: "Damage", directions: ["down"] },
+  { value: "theft", label: "Theft", directions: ["down"] },
+  { value: "expiry", label: "Expiry write-off", directions: ["down"] },
+  { value: "found", label: "Found stock", directions: ["up"] },
+  { value: "correction", label: "Correction", directions: ["up", "down"] },
+  { value: "sample", label: "Sample", directions: ["down"] },
+];
+export const reasonLabel = (r: string) => ADJ_REASONS.find((x) => x.value === r)?.label ?? r;
+export const ADJ_APPROVAL_LIMIT = 25000;
+const MAX_QTY = 999_999_999;
+const MAX_COST = 999_999_999;
+const validDecimal = (n: number, digits: number) =>
+  Number.isFinite(n) && Math.abs(n * 10 ** digits - Math.round(n * 10 ** digits)) < 0.000001;
+const validDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) &&
+  !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+
+export function needsApproval(role: string, value: number, limit = ADJ_APPROVAL_LIMIT): boolean {
+  return role === "Storekeeper" && Number.isFinite(value) && value > (Number.isFinite(limit) && limit >= 0 ? limit : ADJ_APPROVAL_LIMIT);
+}
+export function canApproveAdjustment(role: string): boolean { return role === "Owner" || role === "Manager"; }
+
+export interface AdjLineCheck {
+  itemId?: string | undefined; itemName: string; direction: AdjDirection; qty: number;
+  onHand: number; held?: number | undefined; unitCost: number; active?: boolean | undefined;
+  trackBatches: boolean; batchNo?: string | undefined; batchQty?: number | undefined;
+}
+
+export function adjustmentProblems(reason: string, lines: AdjLineCheck[]): string[] {
+  const problems: string[] = [];
+  const selected = ADJ_REASONS.find((x) => x.value === reason);
+  if (!selected) problems.push("Choose an adjustment reason");
+  if (!lines.length) problems.push("Add at least one line");
+  if (lines.length > 200) problems.push("Adjustments cannot exceed 200 lines");
+  const byItem = new Map<string, { qty: number; free: number; name: string }>();
+  const byBatch = new Map<string, { qty: number; available: number; name: string; batch: string }>();
+  for (const l of lines) {
+    const name = l.itemName || "Item";
+    if (l.active === false) problems.push(`${name}: item is inactive`);
+    if (selected && !selected.directions.includes(l.direction)) problems.push(`${name}: ${selected.label} cannot ${l.direction === "up" ? "increase" : "reduce"} stock`);
+    if (!validDecimal(l.qty, 3) || !(l.qty > 0 && l.qty <= MAX_QTY)) {
+      problems.push(`${name}: enter a positive quantity (up to three decimals)`);
+      continue;
+    }
+    if (l.direction === "up") {
+      if (!validDecimal(l.unitCost, 2) || !(l.unitCost > 0 && l.unitCost <= MAX_COST))
+        problems.push(`${name}: enter a valid positive unit cost (up to two decimals)`);
+    } else if (l.direction === "down") {
+      const key = l.itemId || name;
+      const current = byItem.get(key) ?? { qty: 0, free: l.onHand - (l.held ?? 0), name };
+      current.qty += l.qty;
+      byItem.set(key, current);
+    } else problems.push(`${name}: choose a direction`);
+    const batch = l.batchNo?.trim();
+    if (l.trackBatches && !batch) problems.push(`${name}: ${l.direction === "up" ? "enter" : "choose"} a batch`);
+    if (l.direction === "down" && batch) {
+      if (!Number.isFinite(l.batchQty)) problems.push(`${name}: batch ${batch} is not available in the selected godown`);
+      else {
+        const key = `${l.itemId || name}\u0000${batch.toUpperCase()}`;
+        const current = byBatch.get(key) ?? { qty: 0, available: l.batchQty!, name, batch };
+        current.qty += l.qty;
+        byBatch.set(key, current);
+      }
+    }
+    if (batch && batch.length > 100) problems.push(`${name}: batch number is too long`);
+  }
+  for (const x of byItem.values()) {
+    if (!Number.isFinite(x.free) || x.qty > x.free + 0.000001) problems.push(`${x.name}: only ${x.free} free at the godown (after reservations)`);
+  }
+  for (const x of byBatch.values()) {
+    if (x.qty > x.available + 0.000001) problems.push(`${x.name}: batch ${x.batch} has only ${x.available}`);
+  }
+  return problems;
+}
+
+export function adjustmentDraftProblems(
+  input: { date: string; godownId: string; reason: string; notes: string },
+  godown: { active?: boolean | undefined } | undefined,
+  businessToday: string,
+  lines: AdjLineCheck[],
+): string[] {
+  const problems = adjustmentProblems(input.reason, lines);
+  if (!godown || godown.active === false) problems.push("Choose an active godown");
+  if (!validDate(input.date) || input.date > businessToday) problems.push("Enter a valid adjustment date (not in the future)");
+  if ((input.notes ?? "").length > 500) problems.push("Notes cannot exceed 500 characters");
+  return problems;
+}
+
+export function adjustmentValue(lines: { direction: AdjDirection; qty: number; unitCost: number }[]): { up: number; down: number; net: number; gross: number } {
+  let up = 0, down = 0;
+  for (const l of lines) {
+    const v = Number.isFinite(l.qty) && Number.isFinite(l.unitCost) && l.qty > 0 && l.unitCost >= 0 ? l.qty * l.unitCost : 0;
+    if (l.direction === "up") up += v;
+    if (l.direction === "down") down += v;
+  }
+  return { up, down, net: up - down, gross: up + down };
+}
+
+export function adjustmentsForOrg<T extends { id: string }>(rows: T[], owners: Record<string, string>, orgId: string): T[] {
+  return rows.filter((r) => owners[r.id] === orgId);
+}
+export function searchAdjustments<T extends { number: string; date: string; godownName: string; reason: string; createdBy: string; status: string }>(rows: T[], search: string): T[] {
+  const q = search.trim().toLowerCase();
+  return !q ? rows : rows.filter((r) => [r.number, r.date, r.godownName, reasonLabel(r.reason), r.createdBy, r.status].some((s) => s.toLowerCase().includes(q)));
+}

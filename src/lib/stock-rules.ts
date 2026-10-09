@@ -1,0 +1,109 @@
+import type { Item, LedgerEntry, LedgerFilter, StockAlert } from "@/api/types";
+import { stockFor } from "./stock.ts";
+
+export const NEAR_EXPIRY_DAYS = 45;
+export const OVER_AGED_DAYS = 180;
+
+const DAY = 86_400_000;
+export const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(to.slice(0, 10)) - Date.parse(from.slice(0, 10))) / DAY);
+
+export interface LedgerView {
+  opening: number;
+  rows: (LedgerEntry & { running: number })[];
+  totalIn: number;
+  totalOut: number;
+  closing: number;
+}
+
+/**
+ * Item/godown/batch define a stock stream. Type and document are DISPLAY
+ * filters only: hiding movements must never change the real running balance.
+ */
+export function buildLedger(entries: LedgerEntry[], f: LedgerFilter): LedgerView {
+  const stream = entries.filter((e) =>
+    (!f.itemId || e.itemId === f.itemId) &&
+    (!f.godownId || f.godownId === "all" || e.godownId === f.godownId) &&
+    (!f.batchNo || e.batchNo === f.batchNo));
+  const sorted = stream.sort((a, b) => a.at.localeCompare(b.at) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+  let opening = 0;
+  let running = 0;
+  let totalIn = 0;
+  let totalOut = 0;
+  const result: LedgerView["rows"] = [];
+  for (const e of sorted) {
+    const d = e.at.slice(0, 10);
+    if (f.from && d < f.from) { opening += e.qty; running += e.qty; continue; }
+    if (f.to && d > f.to) continue;
+    // Always advance the physical running balance, including hidden movements.
+    running += e.qty;
+    if (f.type && e.type !== f.type) continue;
+    if (f.docNo && !e.docNo.toLocaleLowerCase().includes(f.docNo.trim().toLocaleLowerCase())) continue;
+    if (e.qty > 0) totalIn += e.qty;
+    else totalOut += -e.qty;
+    result.push({ ...e, running });
+  }
+  return { opening, rows: result, totalIn, totalOut, closing: running };
+}
+
+/** Escape formula-leading cells as well as delimiters (Excel/Sheets safe CSV). */
+function csvCell(value: string | number) {
+  const raw = String(value);
+  const safe = typeof value === "string" && /^[\s\u0000-\u001f]*[=+@\-]/u.test(raw) ? `'${raw}` : raw;
+  return `"${safe.replaceAll('"', '""')}"`;
+}
+
+/** Exports only visible (authorised and filtered) rows; never unfiltered history. */
+export function stockLedgerCsv(rows: LedgerView["rows"], showBalance: boolean): string {
+  const header = ["Date", "Document", "Item", "Godown", "Batch", "Type", "In", "Out", "Balance", "Unit cost", "Value", "User"];
+  const data = rows.map((r) => [r.at.replace("T", " "), r.docNo, r.itemName, r.godownName,
+    r.batchNo ?? "", r.type, r.qty > 0 ? r.qty : "", r.qty < 0 ? -r.qty : "",
+    showBalance ? r.running : "", r.unitCost, (Math.abs(r.qty) * r.unitCost).toFixed(2), r.user]);
+  return `\uFEFF${[header, ...data].map((r) => r.map(csvCell).join(",")).join("\r\n")}\r\n`;
+}
+
+/** Builds alerts from current stock and batches as of `today`. */
+export function computeAlerts(
+  items: Item[],
+  godowns: { id: string; name: string }[],
+  today: string,
+  acknowledged: Set<string>,
+): StockAlert[] {
+  const out: StockAlert[] = [];
+  const gName = (id: string) => godowns.find((g) => g.id === id)?.name ?? id;
+  for (const it of items.filter((i) => i.active)) {
+    for (const s of it.stock) {
+      if (!godowns.some((g) => g.id === s.godownId)) continue;
+      const free = s.onHand - s.held;
+      if (free > 0 && (s.reorderLevel <= 0 || free >= s.reorderLevel)) continue;
+      const kind = free <= 0 ? "out_of_stock" : "below_reorder";
+      const shortfall = Math.max(s.reorderLevel - free, 0);
+      const id = `${kind}-${it.id}-${s.godownId}`;
+      out.push({
+        id, kind, itemId: it.id, itemName: it.name, sku: it.sku, uom: it.baseUom,
+        godownId: s.godownId, godownName: gName(s.godownId),
+        qty: free, reorderLevel: s.reorderLevel, shortfall,
+        valueAtRisk: shortfall * it.costPrice, acknowledged: acknowledged.has(id),
+      });
+    }
+    for (const b of it.batches) {
+      if (!godowns.some((g) => g.id === b.godownId) || b.qty <= 0) continue;
+      const base = { itemId: it.id, itemName: it.name, sku: it.sku, uom: it.baseUom, godownId: b.godownId, godownName: gName(b.godownId), qty: b.qty, batchNo: b.batchNo, valueAtRisk: b.qty * it.costPrice };
+      if (b.expiryDate) {
+        const left = daysBetween(today, b.expiryDate);
+        if (left <= NEAR_EXPIRY_DAYS) {
+          const id = `near_expiry-${b.id}`;
+          out.push({ ...base, id, kind: "near_expiry", expiryDate: b.expiryDate, daysLeft: left, acknowledged: acknowledged.has(id) });
+        }
+      }
+      const age = daysBetween(b.receivedDate, today);
+      if (age > OVER_AGED_DAYS) {
+        const id = `over_aged-${b.id}`;
+        out.push({ ...base, id, kind: "over_aged", ageDays: age, acknowledged: acknowledged.has(id) });
+      }
+    }
+  }
+  return out;
+}
+
+export { stockFor };

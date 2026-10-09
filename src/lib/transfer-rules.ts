@@ -1,0 +1,96 @@
+/** Shared validation for stock transfers. Dispatch quantities are in the item's base UOM. */
+export const STUCK_TRANSFER_DAYS = 2;
+const MAX_QTY = 999_999_999;
+const precise = (n: number, places = 3) => Number.isFinite(n) && Math.abs(n * 10 ** places - Math.round(n * 10 ** places)) < 0.000001;
+const realDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+
+export interface TransferLineCheck {
+  itemId?: string | undefined; itemName: string; qty: number; free: number;
+  trackBatches: boolean; batchNo?: string | undefined; batchQty?: number | undefined;
+  active?: boolean | undefined;
+}
+
+export function transferProblems(fromId: string, toId: string, lines: TransferLineCheck[]): string[] {
+  const p: string[] = [];
+  if (!fromId || !toId) p.push("Choose both godowns");
+  else if (fromId === toId) p.push("From and to godown must be different");
+  if (!lines.length) p.push("Add at least one line");
+  if (lines.length > 200) p.push("Transfers cannot exceed 200 lines");
+  const byItem = new Map<string, { qty: number; free: number; name: string }>();
+  const byBatch = new Map<string, { qty: number; available: number; name: string; batch: string }>();
+  for (const l of lines) {
+    const name = l.itemName || "Item";
+    if (l.active === false) p.push(`${name}: item is inactive`);
+    if (!(l.qty > 0 && l.qty <= MAX_QTY && precise(l.qty))) {
+      p.push(`${name}: enter a positive quantity (up to three decimals)`);
+      continue;
+    }
+    const key = l.itemId || name;
+    const sum = byItem.get(key) || { qty: 0, free: l.free, name };
+    sum.qty += l.qty;
+    byItem.set(key, sum);
+    if (l.trackBatches && !l.batchNo?.trim()) p.push(`${name}: choose a batch`);
+    if (l.batchNo?.trim()) {
+      if (l.batchQty === undefined || !Number.isFinite(l.batchQty)) p.push(`${name}: batch ${l.batchNo} is not available at the source godown`);
+      else {
+        const batchKey = `${key}\u0000${l.batchNo.trim().toUpperCase()}`;
+        const batch = byBatch.get(batchKey) || { qty: 0, available: l.batchQty, name, batch: l.batchNo };
+        batch.qty += l.qty;
+        byBatch.set(batchKey, batch);
+      }
+    }
+  }
+  for (const v of byItem.values()) {
+    if (!Number.isFinite(v.free) || v.qty > v.free + 0.000001) p.push(`${v.name}: only ${v.free} free at the source godown`);
+  }
+  for (const v of byBatch.values()) {
+    if (v.qty > v.available + 0.000001) p.push(`${v.name}: batch ${v.batch} has only ${v.available}`);
+  }
+  return p;
+}
+
+export function transferDraftProblems(
+  input: { date: string; fromId: string; toId: string; vehicleNo: string; reason: string },
+  from: { active?: boolean | undefined } | undefined,
+  to: { active?: boolean | undefined } | undefined,
+  businessToday: string,
+  lines: TransferLineCheck[],
+): string[] {
+  const p = transferProblems(input.fromId, input.toId, lines);
+  if (!realDate(input.date) || input.date > businessToday) p.push("Enter a valid transfer date (not in the future)");
+  if (!from || from.active === false) p.push("Choose an active source godown");
+  if (!to || to.active === false) p.push("Choose an active destination godown");
+  if (input.vehicleNo.length > 32) p.push("Vehicle number is too long");
+  if (input.reason.length > 500) p.push("Transfer reason is too long");
+  return p;
+}
+
+export interface ReceiveLineCheck { itemName: string; sent: number; received: number; reason?: string | undefined }
+export function receiveProblems(lines: ReceiveLineCheck[], expectedCount = lines.length): string[] {
+  const p: string[] = [];
+  if (!expectedCount || lines.length !== expectedCount) p.push("Received quantities must be supplied for every transfer line");
+  for (const l of lines) {
+    if (!precise(l.received) || l.received < 0 || l.received > l.sent) p.push(`${l.itemName}: received must be between 0 and ${l.sent} (up to three decimals)`);
+    else if (l.received < l.sent && !l.reason?.trim()) p.push(`${l.itemName}: give a reason for the shortage`);
+    if ((l.reason?.length ?? 0) > 500) p.push(`${l.itemName}: shortage reason is too long`);
+  }
+  return p;
+}
+
+export function receivedStatus(lines: { sent: number; received: number }[]): "received" | "partially_received" {
+  return lines.every((l) => l.received >= l.sent) ? "received" : "partially_received";
+}
+
+export function transfersForOrg<T extends { id: string }>(list: T[], owners: Record<string, string>, orgId: string): T[] {
+  return list.filter((t) => owners[t.id] === orgId);
+}
+
+export function searchTransfers<T extends { number: string; fromName: string; toName: string; vehicleNo: string; status: string; date: string }>(list: T[], search: string): T[] {
+  const needle = search.trim().toLowerCase();
+  return !needle ? list : list.filter((t) => [t.number, t.fromName, t.toName, t.vehicleNo, t.status, t.date].some((v) => v.toLowerCase().includes(needle)));
+}
+
+export function isStuck(dispatchedOn: string, today: string, days = STUCK_TRANSFER_DAYS): boolean {
+  if (!realDate(dispatchedOn) || !realDate(today)) return false;
+  return (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${dispatchedOn}T00:00:00Z`)) / 86400000 > days;
+}

@@ -1,0 +1,185 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system definition.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-ember: var(--ember);
+  --color-ember-foreground: var(--ember-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: oklch(0.972 0.009 85);
+  --foreground: oklch(0.23 0.02 60);
+  --card: oklch(0.993 0.005 85);
+  --card-foreground: oklch(0.23 0.02 60);
+  --popover: oklch(0.993 0.005 85);
+  --popover-foreground: oklch(0.23 0.02 60);
+  --primary: oklch(0.44 0.075 195);
+  --primary-foreground: oklch(0.98 0.01 190);
+  --secondary: oklch(0.935 0.012 85);
+  --secondary-foreground: oklch(0.28 0.02 60);
+  --muted: oklch(0.945 0.01 85);
+  --muted-foreground: oklch(0.5 0.02 65);
+  --accent: oklch(0.93 0.025 190);
+  --accent-foreground: oklch(0.3 0.06 195);
+  --ember: oklch(0.63 0.16 45);
+  --ember-foreground: oklch(0.99 0.01 60);
+  --success: oklch(0.55 0.12 150);
+  --warning: oklch(0.72 0.14 75);
+  --destructive: oklch(0.56 0.2 27);
+  --destructive-foreground: oklch(0.98 0.01 27);
+  --border: oklch(0.89 0.013 80);
+  --input: oklch(0.86 0.015 80);
+  --ring: oklch(0.44 0.075 195);
+  --chart-1: oklch(0.44 0.075 195);
+  --chart-2: oklch(0.63 0.16 45);
+  --chart-3: oklch(0.6 0.08 160);
+  --chart-4: oklch(0.72 0.14 75);
+  --chart-5: oklch(0.5 0.03 60);
+  --sidebar: oklch(0.21 0.018 220);
+  --sidebar-foreground: oklch(0.82 0.015 210);
+  --sidebar-primary: oklch(0.63 0.16 45);
+  --sidebar-primary-foreground: oklch(0.99 0.01 60);
+  --sidebar-accent: oklch(0.28 0.022 215);
+  --sidebar-accent-foreground: oklch(0.97 0.01 200);
+  --sidebar-border: oklch(0.3 0.02 220);
+  --sidebar-ring: oklch(0.63 0.16 45);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+}
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility kbd {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+}
+
+@utility eyebrow {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+}
+
+/* Print only the dedicated document sheets, never app controls, menus or modal overlays. */
+@media screen { .print-document { display: none; } }
+@page print-a4 { size: A4; margin: 12mm; }
+@page print-thermal { size: 80mm 200mm; margin: 3mm; }
+@media print {
+  body:has(.print-document) * { visibility: hidden !important; }
+  body:has(.print-document) aside, body:has(.print-document) header.sticky,
+  body:has(.print-document) main > div > :not(.print-document) { display: none !important; }
+  body:has(.print-document) main { padding: 0 !important; }
+  body:has(.print-document) .print-document,
+  body:has(.print-document) .print-document * { visibility: visible !important; }
+  body:has(.print-document) .print-document { position: absolute; inset: 0 auto auto 0; width: 100%; display: block !important; background: white !important; color: black !important; font: 10pt/1.4 Arial, sans-serif; }
+  .print-a4 { page: print-a4; }
+  .print-thermal { page: print-thermal; font-size: 8pt !important; }
+  .print-thermal .print-sheet { max-width: 74mm; }
+  .print-sheet { break-after: page; max-width: 186mm; margin: 0 auto; color: black; }
+  .print-sheet:last-child { break-after: auto; }
+  .print-head { display: flex; gap: 10px; align-items: center; justify-content: center; text-align: center; }
+  .print-head h1 { font-size: 1.3em; font-weight: 700; margin: 0; }
+  .print-head p { margin: 0; overflow-wrap: anywhere; }
+  .print-brand-mark { border: 1px solid #111; padding: 8px; font-weight: 700; }
+  .print-doc-title { display: flex; justify-content: space-between; align-items: center; border-block: 2px solid black; margin: 12px 0; padding: 6px 0; gap: 8px; }
+  .print-doc-title span { font-size: .8em; }
+  .print-details { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 3px 12px; margin: 9px 0; }
+  .print-details dt { font-size: .8em; color: #333; }
+  .print-details dd { font-weight: 600; margin: 0; overflow-wrap: anywhere; }
+  .print-lines, .print-tax-summary table { width: 100%; border-collapse: collapse; margin-top: 9px; }
+  .print-lines th, .print-lines td, .print-tax-summary th, .print-tax-summary td { border-bottom: 1px solid #aaa; padding: 5px 3px; vertical-align: top; text-align: right; }
+  .print-lines th:first-child, .print-lines td:first-child, .print-tax-summary th:first-child, .print-tax-summary td:first-child { text-align: left; }
+  .print-lines td small { display: block; font-size: .8em; }
+  .print-lines tr, .print-tax-summary tr, .print-totals { break-inside: avoid; }
+  .print-tax-summary { margin-top: 12px; }
+  .print-totals { margin: 12px 0 12px auto; max-width: 260px; }
+  .print-totals div { display: flex; justify-content: space-between; gap: 10px; }
+  .print-totals .print-total { font-weight: 700; border-top: 2px solid #111; padding-top: 5px; margin-top: 5px; }
+  .print-bank, .print-terms, .print-footer { margin-top: 14px; font-size: .9em; overflow-wrap: anywhere; }
+  .print-signature { text-align: right; margin-top: 32px; }
+  .print-footer { border-top: 1px solid #aaa; padding-top: 5px; text-align: center; }
+  .print-cancelled, .print-test-warning { border: 2px solid #111; font-weight: 700; padding: 8px; text-align: center; margin-top: 12px; }
+}

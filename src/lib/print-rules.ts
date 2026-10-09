@@ -1,0 +1,48 @@
+import type { PrintProfile } from "@/api/types";
+
+/** Profiles are fixed templates; only print options can be edited. */
+export const PRINT_TEMPLATES: Record<PrintProfile["id"], Pick<PrintProfile, "id" | "name" | "paper">> = {
+  A: { id: "A", name: "80 mm thermal (gate pass / counter bill)", paper: "80mm" },
+  B: { id: "B", name: "A4 tax invoice", paper: "A4" },
+};
+
+export const PRINT_DEFAULTS: Record<PrintProfile["id"], PrintProfile> = {
+  A: { ...PRINT_TEMPLATES.A, showLogo: false, showBank: false, showHsnSummary: false, showSignature: false, showQr: false, copies: 1, footer: "Thank you. Visit again." },
+  B: { ...PRINT_TEMPLATES.B, showLogo: true, showBank: true, showHsnSummary: true, showSignature: true, showQr: false, copies: 3, footer: "This is a computer generated invoice." },
+};
+
+export function printProfileProblems(p: PrintProfile, expected?: PrintProfile["id"]): string[] {
+  const problems: string[] = [];
+  const canonical = PRINT_TEMPLATES[p.id];
+  if (!canonical || (expected && expected !== p.id)) problems.push("Invalid print profile ID");
+  if (canonical && (p.paper !== canonical.paper || p.name !== canonical.name)) problems.push("The template name and paper format cannot be changed");
+  for (const key of ["showLogo", "showBank", "showHsnSummary", "showSignature", "showQr"] as const) {
+    if (typeof p[key] !== "boolean") problems.push(`${key} must be true or false`);
+  }
+  if (!Number.isInteger(p.copies) || p.copies < 1 || p.copies > 5) problems.push("Copies must be a whole number between 1 and 5");
+  if (typeof p.footer !== "string" || p.footer.trim().length > 160 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(p.footer)) problems.push("Footer must be at most 160 characters without control characters");
+  return problems;
+}
+
+export function normalisePrintProfile(p: PrintProfile): PrintProfile {
+  return { ...p, footer: p.footer.trim() };
+}
+
+/** A copy represents one separate print sheet; never multiply an invoice amount. */
+export function printCopyLabels(copies: number): string[] {
+  return Array.from({ length: Math.max(0, Number.isInteger(copies) && copies <= 5 ? copies : 0) }, (_, index) =>
+    index === 0 ? "Original" : `Copy ${index + 1}`);
+}
+
+export function taxBreakdown(lines: { hsn: string; gstRate: number; qty: number; rate: number; discountPct: number }[]) {
+  const totals = new Map<string, { hsn: string; rate: number; taxable: number; tax: number }>();
+  for (const line of lines) {
+    const taxable = Math.round(line.qty * line.rate * (1 - line.discountPct / 100) * 100) / 100;
+    const key = `${line.hsn}:${line.gstRate}`;
+    const cur = totals.get(key) ?? { hsn: line.hsn, rate: line.gstRate, taxable: 0, tax: 0 };
+    cur.taxable += taxable;
+    cur.tax += Math.round(taxable * line.gstRate) / 100;
+    totals.set(key, cur);
+  }
+  return [...totals.values()].map((r) => ({ ...r, taxable: Math.round(r.taxable * 100) / 100, tax: Math.round(r.tax * 100) / 100 }));
+}

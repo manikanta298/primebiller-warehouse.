@@ -1,0 +1,212 @@
+import type { Batch, ChallanAllocation } from "@/api/types";
+import { ewayBillRequired } from "./gst.ts";
+
+const HOUR = 3_600_000;
+
+/** Suggest batches oldest-received first (FIFO). `short` > 0 means not enough batch stock. */
+export function fifoAllocate(batches: Pick<Batch, "batchNo" | "qty" | "receivedDate">[], qty: number): { allocations: ChallanAllocation[]; short: number } {
+  let left = qty;
+  const allocations: ChallanAllocation[] = [];
+  for (const b of [...batches].filter((b) => b.qty > 0).sort((a, b) => a.receivedDate.localeCompare(b.receivedDate))) {
+    if (left <= 0) break;
+    const take = Math.min(b.qty, left);
+    allocations.push({ batchNo: b.batchNo, qty: take });
+    left -= take;
+  }
+  return { allocations, short: Math.max(0, left) };
+}
+
+/** True when the chosen batches differ from the FIFO suggestion (needs a reason). */
+export function isManualOverride(chosen: ChallanAllocation[], fifo: ChallanAllocation[]): boolean {
+  const key = (a: ChallanAllocation[]) => a.filter((x) => x.qty > 0).map((x) => `${x.batchNo ?? ""}:${x.qty}`).sort().join("|");
+  return key(chosen) !== key(fifo);
+}
+
+/** E-way bill validity: 1 day per 200 km (minimum 1 day). */
+export function ewbValidityDays(km: number): number {
+  return Math.max(1, Math.ceil(km / 200));
+}
+
+/** Validity ends at midnight after N days, counted from generation. */
+export function ewbValidUntil(generatedAt: string, km: number): string {
+  const d = new Date(generatedAt);
+  d.setDate(d.getDate() + ewbValidityDays(km));
+  d.setHours(23, 59, 0, 0);
+  return d.toISOString();
+}
+
+/** An e-way bill can be cancelled only within 24 hours of generation. */
+export function canCancelEwb(generatedAt: string, now: string): boolean {
+  return canCancelTestEwb(generatedAt, now);
+}
+
+export const VEHICLE_PATTERN = /^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/;
+export const normaliseVehicle = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+export interface DispatchCheck {
+  qty: number;
+  pending: number;
+  allocated: number;
+}
+
+/** Validates a challan before dispatch; returns human-readable problems. */
+export function dispatchProblems(lines: DispatchCheck[], value: number, transport: { vehicleNo: string; driverName: string; distanceKm: number }, overrideNeeded: boolean, overrideReason: string): string[] {
+  const out: string[] = [];
+  if (!lines.some((l) => l.qty > 0)) out.push("Send at least one line");
+  lines.forEach((l, i) => {
+    if (l.qty > l.pending) out.push(`Line ${i + 1}: only ${l.pending} pending`);
+    if (l.qty > 0 && l.allocated !== l.qty) out.push(`Line ${i + 1}: batches add up to ${l.allocated}, need ${l.qty}`);
+  });
+  if (overrideNeeded && overrideReason.trim().length < 5) out.push("Give a reason for changing the FIFO batches");
+  if (!VEHICLE_PATTERN.test(normaliseVehicle(transport.vehicleNo))) out.push("Enter a valid vehicle number, e.g. TS09EA1234");
+  if (!transport.driverName.trim()) out.push("Enter the driver's name");
+  if (ewayBillRequired(value) && !(transport.distanceKm > 0)) out.push("Distance is needed for the e-way bill");
+  return out;
+}
+
+/** Dispatch checks shared by the wizard, demo API and MySQL API. Never trust UI quantities. */
+export type DispatchLineDraft = { soLineId: string; qty: number; allocations: ChallanAllocation[] };
+export type DispatchOrderLine = { id: string; itemId: string; qty: number; deliveredQty: number };
+export type DispatchStockItem = {
+  id: string; name: string; trackBatches: boolean; allowNegative: boolean;
+  stock: { godownId: string; onHand: number }[];
+  batches: { batchNo: string; godownId: string; qty: number; receivedDate: string }[];
+};
+
+const validQty = (n: number) => Number.isFinite(n) && n > 0 && n <= 999_999_999 && Math.abs(n * 1000 - Math.round(n * 1000)) < 1e-6;
+const closeQty = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+const qtyKey = (itemId: string, batchNo: string) => `${itemId}\u0000${batchNo}`;
+
+/** Suggest FIFO across the *whole* dispatch, not separately per sales-order line. */
+export function planFifoAllocations(
+  lines: DispatchLineDraft[], orderLines: DispatchOrderLine[], items: DispatchStockItem[], godownId: string,
+): Record<string, ChallanAllocation[]> {
+  const orders = new Map(orderLines.map((x) => [x.id, x]));
+  const masters = new Map(items.map((x) => [x.id, x]));
+  const remaining = new Map<string, number>();
+  const out: Record<string, ChallanAllocation[]> = {};
+  for (const line of lines) {
+    if (!(line.qty > 0)) continue;
+    const sl = orders.get(line.soLineId);
+    const item = sl && masters.get(sl.itemId);
+    if (!item) continue;
+    if (!item.trackBatches) { out[line.soLineId] = [{ qty: line.qty }]; continue; }
+    const batches = item.batches.filter((b) => b.godownId === godownId && b.qty > 0)
+      .sort((a, b) => a.receivedDate.localeCompare(b.receivedDate) || a.batchNo.localeCompare(b.batchNo));
+    let left = line.qty;
+    const allocations: ChallanAllocation[] = [];
+    for (const batch of batches) {
+      const key = qtyKey(item.id, batch.batchNo);
+      const available = remaining.get(key) ?? batch.qty;
+      const take = Math.min(Math.max(0, available), left);
+      if (take > 0) { allocations.push({ batchNo: batch.batchNo, qty: take }); remaining.set(key, available - take); left -= take; }
+      if (left <= 1e-6) break;
+    }
+    out[line.soLineId] = allocations;
+  }
+  return out;
+}
+
+function sameAllocations(a: ChallanAllocation[], b: ChallanAllocation[]) {
+  const sum = (entries: ChallanAllocation[]) => {
+    const m = new Map<string, number>();
+    for (const e of entries) if (e.qty > 0) m.set(e.batchNo ?? "", (m.get(e.batchNo ?? "") ?? 0) + e.qty);
+    return m;
+  };
+  const left = sum(a), right = sum(b);
+  return left.size === right.size && [...left].every(([key, qty]) => closeQty(qty, right.get(key) ?? -1));
+}
+
+export function dispatchPlanProblems(
+  lines: DispatchLineDraft[], orderLines: DispatchOrderLine[], items: DispatchStockItem[], godownId: string,
+  overrideReason: string | undefined,
+): string[] {
+  const problems: string[] = [];
+  if (!lines.length) return ["Send at least one line"];
+  if (lines.length > 200) problems.push("A challan cannot contain more than 200 lines");
+  const orders = new Map(orderLines.map((x) => [x.id, x]));
+  const masters = new Map(items.map((x) => [x.id, x]));
+  const seen = new Set<string>();
+  const itemsNeeded = new Map<string, number>();
+  const batchesNeeded = new Map<string, number>();
+  const suggestion = planFifoAllocations(lines, orderLines, items, godownId);
+  let override = false;
+
+  for (const [index, line] of lines.entries()) {
+    const name = `Line ${index + 1}`;
+    if (seen.has(line.soLineId)) { problems.push(`${name}: sales-order line is included more than once`); continue; }
+    seen.add(line.soLineId);
+    const sl = orders.get(line.soLineId);
+    if (!sl) { problems.push(`${name}: unknown sales-order line`); continue; }
+    const item = masters.get(sl.itemId);
+    if (!item) { problems.push(`${name}: item is no longer available`); continue; }
+    if (!validQty(line.qty)) { problems.push(`${name}: enter a positive quantity with up to 3 decimals`); continue; }
+    if (line.qty > sl.qty - sl.deliveredQty + 1e-6) problems.push(`${name}: only ${Math.max(0, sl.qty - sl.deliveredQty)} pending`);
+    itemsNeeded.set(item.id, (itemsNeeded.get(item.id) ?? 0) + line.qty);
+    let allocated = 0;
+    const perLineBatches = new Set<string>();
+    if (!line.allocations.length) problems.push(`${name}: allocate stock before dispatch`);
+    for (const a of line.allocations) {
+      if (!validQty(a.qty)) { problems.push(`${name}: allocation must be positive with up to 3 decimals`); continue; }
+      allocated += a.qty;
+      const batchNo = a.batchNo?.trim() ?? "";
+      if (perLineBatches.has(batchNo)) problems.push(`${name}: batch ${batchNo || "General"} is repeated`);
+      perLineBatches.add(batchNo);
+      if (item.trackBatches && !batchNo) problems.push(`${name}: ${item.name} requires a batch allocation`);
+      if (!item.trackBatches && batchNo) problems.push(`${name}: ${item.name} is not batch tracked`);
+      if (batchNo) {
+        const key = qtyKey(item.id, batchNo);
+        batchesNeeded.set(key, (batchesNeeded.get(key) ?? 0) + a.qty);
+        if (!item.batches.some((b) => b.godownId === godownId && b.batchNo === batchNo)) problems.push(`${name}: batch ${batchNo} is unavailable in this godown`);
+      }
+    }
+    if (!closeQty(allocated, line.qty)) problems.push(`${name}: allocations add up to ${Number(allocated.toFixed(3))}, need ${line.qty}`);
+    if (!sameAllocations(line.allocations, suggestion[line.soLineId] ?? [])) override = true;
+  }
+  for (const [id, qty] of itemsNeeded) {
+    const item = masters.get(id)!;
+    const onHand = item.stock.find((x) => x.godownId === godownId)?.onHand ?? 0;
+    if (!item.allowNegative && qty > onHand + 1e-6) problems.push(`${item.name}: need ${Number(qty.toFixed(3))}, only ${onHand} on hand`);
+  }
+  for (const [key, qty] of batchesNeeded) {
+    const [itemId, batchNo] = key.split("\u0000");
+    const item = masters.get(itemId!)!;
+    const available = item.batches.find((b) => b.godownId === godownId && b.batchNo === batchNo)?.qty ?? 0;
+    if (qty > available + 1e-6) problems.push(`${item.name}: batch ${batchNo} has ${available}, requested ${Number(qty.toFixed(3))}`);
+  }
+  if (override && (overrideReason?.trim().length ?? 0) < 5) problems.push("Give a reason for changing the FIFO batches");
+  if ((overrideReason?.length ?? 0) > 500) problems.push("FIFO override reason cannot exceed 500 characters");
+  return problems;
+}
+
+/** False for negative/future timestamps as well as attempts after 24 hours. */
+export function canCancelTestEwb(generatedAt: string, now: string): boolean {
+  const elapsed = Date.parse(now) - Date.parse(generatedAt);
+  return Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 24 * HOUR;
+}
+
+/** The screen's transport fields have the same constraints on the API. */
+export function dispatchTransportProblems(t: { vehicleNo: string; driverName: string; driverPhone: string; transporter: string; distanceKm: number }, value: number): string[] {
+  const problems: string[] = [];
+  if (!VEHICLE_PATTERN.test(normaliseVehicle(t.vehicleNo))) problems.push("Enter a valid vehicle number, e.g. TS09EA1234");
+  if (!t.driverName.trim() || t.driverName.trim().length > 120) problems.push("Enter a driver name (up to 120 characters)");
+  if (t.driverPhone && !/^\d{10}$/.test(t.driverPhone)) problems.push("Driver phone must contain 10 digits");
+  if (t.transporter.length > 120) problems.push("Transporter cannot exceed 120 characters");
+  if (!Number.isFinite(t.distanceKm) || t.distanceKm < 0 || t.distanceKm > 1_000_000 || !Number.isInteger(t.distanceKm)) problems.push("Distance must be a whole number of kilometres");
+  if (ewayBillRequired(value) && !(t.distanceKm > 0)) problems.push("Distance is needed for the e-way bill");
+  return problems;
+}
+
+/** Demo-only ownership filter; server-side MySQL documents are scoped by org_id. */
+export function challansForOrg<T extends { id: string }>(rows: T[], owners: Record<string, string>, orgId: string): T[] {
+  return rows.filter((row) => !!orgId && owners[row.id] === orgId);
+}
+
+export function filterChallans<T extends { id: string; number: string; date: string; customerName: string; soNumber: string; godownName: string; vehicleNo: string; status: string }>(
+  rows: T[], status: string, search: string,
+): T[] {
+  const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return rows.filter((row) => (!status || status === "all" || row.status === status) &&
+    terms.every((term) => `${row.number} ${row.customerName} ${row.soNumber} ${row.godownName} ${row.vehicleNo} ${row.date} ${row.status}`.toLocaleLowerCase().includes(term)))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
+}

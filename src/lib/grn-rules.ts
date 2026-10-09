@@ -1,0 +1,117 @@
+/** Shared client/API validation for a stock-posting goods receipt. Pure functions only. */
+export interface GrnDraftLine {
+  poLineId?: string | undefined;
+  itemId: string;
+  received: number;
+  rejected: number;
+  rate: number;
+  batchNo?: string | undefined;
+  mfgDate?: string | undefined;
+  expiryDate?: string | undefined;
+  rejectionReason?: string | undefined;
+}
+export interface GrnDraft {
+  date: string;
+  supplierId: string;
+  poId?: string | undefined;
+  supplierInvoiceNo: string;
+  supplierInvoiceDate: string;
+  godownId: string;
+  vehicleNo: string;
+  freight: number;
+  lines: GrnDraftLine[];
+}
+export interface GrnSupplier { id: string; kind: string; blocked?: boolean | undefined }
+export interface GrnWarehouse { id: string; active?: boolean | undefined }
+export interface GrnCatalogItem {
+  id: string; name: string; active?: boolean | undefined; trackBatches: boolean;
+  batches?: { batchNo: string; godownId: string; mfgDate: string; expiryDate?: string | undefined }[] | undefined;
+}
+export interface GrnPo {
+  status: string; supplierId: string; godownId: string;
+  lines: { id: string; itemId: string; qty: number; receivedQty: number }[];
+}
+export interface GrnInvoiceReference { supplierId: string; supplierInvoiceNo: string }
+
+const realDate = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+  !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+const precision = (n: number, digits: number) => Number.isFinite(n) &&
+  Math.abs(n * 10 ** digits - Math.round(n * 10 ** digits)) < 0.000001;
+export const invoiceKey = (value: string) => value.trim().toLocaleUpperCase();
+
+export function grnDraftProblems(
+  draft: GrnDraft,
+  supplier: GrnSupplier | undefined,
+  godown: GrnWarehouse | undefined,
+  items: GrnCatalogItem[],
+  po: GrnPo | undefined,
+  businessToday: string,
+  previous: GrnInvoiceReference[] = [],
+): string[] {
+  const errors: string[] = [];
+  if (!realDate(draft.date) || draft.date > businessToday) errors.push('Enter a valid receipt date (not in the future)');
+  if (!realDate(draft.supplierInvoiceDate) || draft.supplierInvoiceDate > businessToday ||
+    (realDate(draft.date) && draft.supplierInvoiceDate > draft.date)) errors.push('Supplier invoice date must be valid and no later than the receipt date');
+  if (!supplier || !['supplier', 'both'].includes(supplier.kind) || supplier.blocked) errors.push('Choose an active supplier');
+  if (!godown || godown.active === false) errors.push('Choose an active godown');
+  if (!draft.supplierInvoiceNo.trim() || draft.supplierInvoiceNo.trim().length > 100) errors.push('Supplier invoice number is required (max 100 characters)');
+  if (draft.vehicleNo.length > 32) errors.push('Vehicle number is too long');
+  if (!(draft.freight >= 0 && draft.freight <= 999_999_999 && precision(draft.freight, 2))) errors.push('Freight must be a non-negative amount with two decimal places');
+  if (supplier && previous.some((g) => g.supplierId === supplier.id && invoiceKey(g.supplierInvoiceNo) === invoiceKey(draft.supplierInvoiceNo))) errors.push('This supplier invoice has already been received');
+  if (draft.poId && !po) errors.push('Purchase order not found');
+  if (po) {
+    if (!['open', 'partially_received'].includes(po.status)) errors.push('Approve the purchase order before receiving goods');
+    if (po.supplierId !== draft.supplierId || po.godownId !== draft.godownId) errors.push('Supplier and godown must match the purchase order');
+  }
+  if (draft.lines.length === 0) errors.push('Receive at least one line');
+  if (draft.lines.length > 200) errors.push('A goods receipt cannot exceed 200 lines');
+
+  const used = new Set<string>();
+  const totals = new Map<string, number>();
+  let acceptedTotal = 0;
+  draft.lines.forEach((l, n) => {
+    const label = `Line ${n + 1}`;
+    const it = items.find((x) => x.id === l.itemId && x.active !== false);
+    if (!it) errors.push(`${label}: choose an active item`);
+    if (!(l.received > 0 && l.received <= 999_999_999 && precision(l.received, 3))) errors.push(`${label}: received quantity must be positive (up to three decimals)`);
+    if (!(l.rejected >= 0 && l.rejected <= l.received && precision(l.rejected, 3))) errors.push(`${label}: rejected quantity cannot exceed received quantity`);
+    if (!(l.rate > 0 && l.rate <= 999_999_999 && precision(l.rate, 2))) errors.push(`${label}: rate must be positive (up to two decimals)`);
+    if (l.rejected > 0 && (!l.rejectionReason?.trim() || l.rejectionReason.trim().length > 500)) errors.push(`${label}: enter a rejection reason (max 500 characters)`);
+    if ((l.rejectionReason?.length ?? 0) > 500) errors.push(`${label}: rejection reason is too long`);
+    if ((l.batchNo?.length ?? 0) > 100) errors.push(`${label}: batch / heat number is too long`);
+    if (l.mfgDate && (!realDate(l.mfgDate) || (realDate(draft.date) && l.mfgDate > draft.date))) errors.push(`${label}: manufacturing date must not be after receipt date`);
+    if (l.expiryDate && (!realDate(l.expiryDate) || (realDate(draft.date) && l.expiryDate < draft.date) || (!!l.mfgDate && l.expiryDate < l.mfgDate))) errors.push(`${label}: expiry date is invalid or before receipt/manufacturing`);
+    const accepted = l.received - l.rejected;
+    if (Number.isFinite(accepted) && accepted > 0) acceptedTotal += accepted;
+    const batchNo = l.batchNo?.trim() ?? '';
+    if (it?.trackBatches && accepted > 0 && !batchNo) errors.push(`${label}: batch / heat number is required`);
+    const key = `${l.poLineId ?? l.itemId}\u0000${batchNo.toLocaleUpperCase()}`;
+    if (used.has(key)) errors.push(`${label}: combine repeated item and batch lines`);
+    used.add(key);
+    if (it && batchNo && accepted > 0) {
+      const existing = it.batches?.find((b) => b.batchNo.toLocaleUpperCase() === batchNo.toLocaleUpperCase() && b.godownId === draft.godownId);
+      if (existing && ((l.mfgDate && l.mfgDate !== existing.mfgDate) || (l.expiryDate && l.expiryDate !== existing.expiryDate))) errors.push(`${label}: existing batch dates do not match`);
+    }
+    if (po) {
+      const pl = po.lines.find((x) => x.id === l.poLineId && x.itemId === l.itemId);
+      if (!pl) errors.push(`${label}: select an item line from the purchase order`);
+      else totals.set(pl.id, (totals.get(pl.id) ?? 0) + (Number.isFinite(l.received) ? l.received : 0));
+    } else if (l.poLineId) errors.push(`${label}: PO line cannot be supplied without a PO`);
+  });
+  if (po) for (const [id, total] of totals) {
+    const line = po.lines.find((l) => l.id === id)!;
+    if (Math.round(total * 1000) > Math.round((line.qty - line.receivedQty) * 1000)) errors.push('Combined received quantities exceed the pending purchase order quantity');
+  }
+  if (draft.freight > 0 && !(acceptedTotal > 0)) errors.push('Freight requires at least one accepted item');
+  return errors;
+}
+
+export function grnsForOrg<T extends { id: string }>(rows: T[], owners: Record<string, string>, orgId: string): T[] {
+  return rows.filter((r) => !!orgId && owners[r.id] === orgId);
+}
+export function filterGrns<T extends { number: string; date: string; supplierName: string; supplierInvoiceNo: string; godownName: string; poNumber?: string | undefined }>(rows: T[], search: string, mode: 'all' | 'linked' | 'direct'): T[] {
+  const words = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return rows.filter((g) => (mode === 'all' || (mode === 'linked' ? !!g.poNumber : !g.poNumber)) &&
+    words.every((w) => `${g.number} ${g.date} ${g.supplierName} ${g.supplierInvoiceNo} ${g.godownName} ${g.poNumber ?? ''}`.toLocaleLowerCase().includes(w)))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
+}

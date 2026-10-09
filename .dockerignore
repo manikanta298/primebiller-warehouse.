@@ -1,0 +1,11 @@
+.git
+node_modules
+backend/node_modules
+backend/.env
+.env
+.env.*
+!.env.example
+.output
+dist
+coverage
+*.zip

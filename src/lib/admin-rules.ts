@@ -1,0 +1,63 @@
+/** Stage 19 administration invariants; mirrored into Express by sync-shared. */
+import type { AppUser, AppUserInput, OrgSettingsInput } from "@/api/types";
+import { isValidGstin, stateFromGstin } from "./gst.ts";
+
+export function usersForOrg<T extends { id: string }>(users: T[], memberships: Record<string, string[]>, orgId: string): T[] {
+  return users.filter((u) => (memberships[u.id] ?? []).includes(orgId));
+}
+
+export function userProblems(
+  input: AppUserInput,
+  godownIds: readonly string[],
+  orgUsers: readonly Pick<AppUser, "id" | "role" | "active">[],
+  selfId?: string,
+): string[] {
+  const p: string[] = [];
+  if (!input.name.trim() || input.name.trim().length > 120) p.push("Name is required (maximum 120 characters)");
+  if (input.email.length > 190 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim())) p.push("Enter a valid email address");
+  if (input.mobile.trim() && !/^\d{10}$/.test(input.mobile.replace(/\D/g, ""))) p.push("Mobile must contain 10 digits, or be left blank");
+  if (!["Owner", "Manager", "Storekeeper", "Sales", "Accountant", "Driver"].includes(input.role)) p.push("Choose a valid role");
+  if (!input.godownIds.length || new Set(input.godownIds).size !== input.godownIds.length || input.godownIds.some((id) => !godownIds.includes(id)))
+    p.push("Choose at least one valid warehouse without duplicates");
+  if (input.id === selfId && (input.role !== "Owner" || !input.active)) p.push("You cannot remove your own Owner access");
+  const before = orgUsers.find((u) => u.id === input.id);
+  if (before?.role === "Owner" && before.active && (!input.active || input.role !== "Owner") &&
+      !orgUsers.some((u) => u.id !== input.id && u.role === "Owner" && u.active))
+    p.push("The organisation must have at least one active Owner");
+  return p;
+}
+
+function validDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+export function settingsProblems(input: OrgSettingsInput): string[] {
+  const p: string[] = [];
+  if (!input.legalName.trim() || input.legalName.trim().length > 160) p.push("Legal name is required (maximum 160 characters)");
+  if (!isValidGstin(input.gstin)) p.push("GSTIN is not valid");
+  if (input.pan.trim().toUpperCase() !== input.gstin.slice(2, 12).toUpperCase()) p.push("PAN must match the PAN embedded in GSTIN");
+  if (stateFromGstin(input.gstin) !== input.stateCode) p.push("The GSTIN state does not match the organisation's state");
+  if (!validDay(input.fyStart) || !validDay(input.fyEnd) || input.fyEnd <= input.fyStart) p.push("Enter valid financial-year start and end dates");
+  if (input.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email)) p.push("Enter a valid organisation email");
+  if (input.ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.ifsc.toUpperCase())) p.push("Enter a valid IFSC code");
+  if (input.bankAccount && !/^\d{6,22}$/.test(input.bankAccount.replace(/\s/g, ""))) p.push("Bank account number must contain 6–22 digits");
+  if (!Number.isFinite(input.einvoiceThreshold) || input.einvoiceThreshold < 0 || !Number.isFinite(input.adjApprovalLimit) || input.adjApprovalLimit < 0)
+    p.push("Thresholds must be non-negative numbers");
+  if (input.reasonCodes.length > 50) p.push("Up to 50 reason codes are allowed");
+  const seen = new Set<string>();
+  for (const r of input.reasonCodes) {
+    const code = r.code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{1,12}$/.test(code) || !r.label.trim() || r.label.length > 120) p.push("Reason codes need a short code and label");
+    const key = `${r.type}|${code}`;
+    if (seen.has(key)) p.push("Reason codes must be unique per type");
+    seen.add(key);
+  }
+  if (input.gsp.secret && input.gsp.secret.length > 256) p.push("GSP secret is too long");
+  return [...new Set(p)];
+}
+
+export function normaliseUserInput(input: AppUserInput): AppUserInput {
+  return { ...input, name: input.name.trim(), email: input.email.trim().toLowerCase(), mobile: input.mobile.replace(/\D/g, "") };
+}

@@ -1,0 +1,118 @@
+/** Purchase & GRN rules: landed cost, weighted-average cost, line checks, PO status. */
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Spread freight/other charges across lines in proportion to their value. */
+export function apportionFreight(values: number[], freight: number): number[] {
+  const total = values.reduce((a, b) => a + b, 0);
+  if (!freight || total <= 0) return values.map(() => 0);
+  const shares = values.map((v) => r2((v / total) * freight));
+  const drift = r2(freight - shares.reduce((a, b) => a + b, 0));
+  // Keep rounding drift on a positive-value line: zero-accepted lines have no
+  // inventory on which to capitalise freight.
+  let lastPositive = -1;
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (values[i]! > 0) { lastPositive = i; break; }
+  }
+  if (drift && lastPositive >= 0) shares[lastPositive] = r2(shares[lastPositive]! + drift);
+  return shares;
+}
+
+/** New weighted-average cost after receiving inQty at inCost. */
+export function weightedAverageCost(oldQty: number, oldCost: number, inQty: number, inCost: number): number {
+  const q = Math.max(0, oldQty) + inQty;
+  if (q <= 0) return inCost;
+  return r2((Math.max(0, oldQty) * oldCost + inQty * inCost) / q);
+}
+
+export interface GrnLineCheck {
+  itemName: string;
+  received: number;
+  rejected: number;
+  pending?: number | undefined;
+  trackBatches: boolean;
+  batchNo?: string | undefined;
+  rejectionReason?: string | undefined;
+  rate: number;
+}
+
+export function grnLineProblems(l: GrnLineCheck): string[] {
+  const p: string[] = [];
+  if (!(l.received > 0)) p.push(`${l.itemName}: enter the received quantity`);
+  if (l.rejected < 0 || l.rejected > l.received) p.push(`${l.itemName}: rejected cannot exceed received`);
+  if (l.pending !== undefined && l.received > l.pending) p.push(`${l.itemName}: more than pending on the PO (${l.pending})`);
+  if (l.trackBatches && l.received - l.rejected > 0 && !l.batchNo?.trim()) p.push(`${l.itemName}: batch / heat no. is required`);
+  if (l.rejected > 0 && !l.rejectionReason?.trim()) p.push(`${l.itemName}: give a rejection reason`);
+  if (!(l.rate > 0)) p.push(`${l.itemName}: rate must be more than zero`);
+  return p;
+}
+
+export type PoStatus = "open" | "partially_received" | "received" | "cancelled";
+export function poStatus(lines: { qty: number; receivedQty: number }[]): PoStatus {
+  if (lines.every((l) => l.receivedQty >= l.qty)) return "received";
+  return lines.some((l) => l.receivedQty > 0) ? "partially_received" : "open";
+}
+
+/** Stage 12: purchase-order input, supplier and warehouse checks shared across demo and API. */
+export interface PoDraft {
+  date: string;
+  supplierId: string;
+  godownId: string;
+  notes: string;
+  draft?: boolean | undefined;
+  lines: { itemId: string; qty: number; rate: number }[];
+}
+export interface PoParty { id: string; kind: string; blocked?: boolean | undefined; stateCode: string }
+export interface PoWarehouse { id: string; active?: boolean | undefined }
+export interface PoCatalogItem { id: string; name: string; active?: boolean | undefined }
+
+const poRealDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) &&
+  !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+const poPrecision = (n: number, digits: number) => Number.isFinite(n) &&
+  Math.abs(n * 10 ** digits - Math.round(n * 10 ** digits)) < 0.000001;
+
+export function poDraftProblems(
+  input: PoDraft, supplier: PoParty | undefined, godown: PoWarehouse | undefined,
+  items: PoCatalogItem[], businessToday: string,
+): string[] {
+  const errors: string[] = [];
+  if (!poRealDate(input.date)) errors.push('Enter a valid purchase-order date');
+  else if (input.date > businessToday) errors.push('Purchase-order date cannot be in the future');
+  if (!supplier || !['supplier', 'both'].includes(supplier.kind) || supplier.blocked) errors.push('Choose an active supplier');
+  if (!godown || godown.active === false) errors.push('Choose an active delivery godown');
+  if (input.notes.length > 2000) errors.push('Notes cannot exceed 2,000 characters');
+  if (!input.lines.length) errors.push('Add at least one item');
+  if (input.lines.length > 200) errors.push('A purchase order cannot exceed 200 lines');
+  const seen = new Set<string>();
+  input.lines.forEach((line, index) => {
+    const title = `Line ${index + 1}`;
+    if (!line.itemId || !items.some((i) => i.id === line.itemId && i.active !== false)) errors.push(`${title}: choose an active item`);
+    if (seen.has(line.itemId) && line.itemId) errors.push(`${title}: combine duplicate item lines`);
+    seen.add(line.itemId);
+    if (!(line.qty > 0 && line.qty <= 999_999_999 && poPrecision(line.qty, 3))) errors.push(`${title}: quantity must be positive with at most three decimal places`);
+    if (!(line.rate >= 0 && line.rate <= 999_999_999 && poPrecision(line.rate, 2))) errors.push(`${title}: rate must be non-negative with at most two decimal places`);
+  });
+  return errors;
+}
+
+export interface PoWorkflow { status: string; lines: { receivedQty: number }[]; grns: { id: string }[] }
+export function poWorkflowProblems(po: PoWorkflow, action: 'approve' | 'cancel', reason = ''): string[] {
+  if (action === 'approve') return po.status === 'draft' ? [] : ['Only draft purchase orders can be approved'];
+  const problems: string[] = [];
+  if (!['draft', 'open'].includes(po.status)) problems.push('Only draft or unreceived open purchase orders can be cancelled');
+  if (po.grns.length || po.lines.some((l) => l.receivedQty > 0)) problems.push('Purchase orders with goods receipts cannot be cancelled');
+  if (reason.trim().length < 5 || reason.trim().length > 500) problems.push('Enter a cancellation reason (5–500 characters)');
+  return problems;
+}
+
+export function purchaseOrdersForOrg<T extends { id: string }>(orders: T[], ownerIds: Record<string, string>, orgId: string): T[] {
+  return orders.filter((po) => !!orgId && ownerIds[po.id] === orgId);
+}
+
+export function filterPurchaseOrders<T extends { number: string; date: string; supplierName: string; godownName: string; status: string }>(
+  orders: T[], search: string, status: string,
+): T[] {
+  const tokens = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return orders.filter((po) => (status === 'all' || po.status === status) &&
+    tokens.every((t) => `${po.number} ${po.date} ${po.supplierName} ${po.godownName} ${po.status}`.toLocaleLowerCase().includes(t)))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
+}

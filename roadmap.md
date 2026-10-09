@@ -1,0 +1,19 @@
+# Girder roadmap
+- [x] App shell, login + org select, role guards
+- [x] Dashboard
+- [x] Items (list + detail tabs)
+- [x] Sales orders (list + editor, credit override, confirm & hold stock)
+- [x] Delivery challans (wizard, e-way bill, POD)
+- [x] Tax invoices
+- [x] Receipts & advances
+- [x] Purchases / GRN
+- [x] Stock ledger, Alerts
+- [x] Transfers, Adjustments
+- [x] Parties, Warehouses, Units/Categories/Brands/HSN (spec step 2)
+- [x] Bulk import (items, parties, warehouses)
+- [x] Sales + Accountant roles
+- [x] Find a document
+- [x] Reports & GSTR-1
+- [x] Print profiles
+- [x] Users & roles, Numbering series, Settings
+- [x] Express + MySQL backend in `backend/` (empty schema, first-Owner setup, JWT auth, /api/v1 endpoints)

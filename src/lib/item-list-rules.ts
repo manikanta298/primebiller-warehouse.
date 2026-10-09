@@ -1,0 +1,97 @@
+/**
+ * Shared, deterministic Items List presentation rules. The server remains the
+ * source of truth for organisation ownership, stock quantities, and permissions.
+ * This file only filters and summarises an already-authorised item snapshot.
+ */
+import type { Item } from "@/api/types";
+
+export type ItemStockFilter = "all" | "available" | "low" | "out";
+export type ItemActivityFilter = "active" | "inactive" | "all";
+export type ItemListSort = "name_asc" | "name_desc" | "stock_desc" | "free_asc" | "value_desc" | "price_desc";
+export type ItemListOptions = {
+  query: string;
+  category: string;
+  stock: ItemStockFilter;
+  activity: ItemActivityFilter;
+  sort: ItemListSort;
+  godownId: string;
+};
+
+export function itemStock(item: Item, godownId: string) {
+  const rows = godownId === "all" ? item.stock : item.stock.filter((s) => s.godownId === godownId);
+  const onHand = rows.reduce((n, s) => n + s.onHand, 0);
+  const held = rows.reduce((n, s) => n + s.held, 0);
+  const reorder = rows.reduce((n, s) => n + s.reorderLevel, 0);
+  return { onHand, held, free: onHand - held, reorder };
+}
+
+/** Alerts use free (unreserved) stock, not just on-hand quantities. */
+export function itemStockStatus(item: Item, godownId: string): Exclude<ItemStockFilter, "all"> {
+  const { free, reorder } = itemStock(item, godownId);
+  if (free <= 0) return "out";
+  if (reorder > 0 && free < reorder) return "low";
+  return "available";
+}
+
+/** KPI cards represent the full active catalogue, not just the current search page. */
+export function itemListSummary(items: Item[], godownId: string) {
+  return items.reduce((totals, item) => {
+    if (!item.active) return totals;
+    const s = itemStock(item, godownId);
+    totals.active++;
+    totals.value += s.onHand * item.costPrice;
+    const status = itemStockStatus(item, godownId);
+    if (status === "out") totals.out++;
+    if (status === "low") totals.low++;
+    return totals;
+  }, { active: 0, value: 0, low: 0, out: 0 });
+}
+
+export function filterItemList(items: Item[], options: ItemListOptions): Item[] {
+  const words = options.query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const filtered = items.filter((item) => {
+    if (options.activity === "active" && !item.active) return false;
+    if (options.activity === "inactive" && item.active) return false;
+    if (options.category !== "all" && item.category !== options.category) return false;
+    if (options.stock !== "all" && itemStockStatus(item, options.godownId) !== options.stock) return false;
+    const haystack = [item.name, item.sku, item.hsn, item.brand, item.category].join(" ").toLocaleLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
+  const nameOrder = (a: Item, b: Item) => a.name.localeCompare(b.name) || a.sku.localeCompare(b.sku) || a.id.localeCompare(b.id);
+  const descending = (a: Item, b: Item, value: (i: Item) => number) => value(b) - value(a) || nameOrder(a, b);
+  return filtered.sort((a, b) => {
+    switch (options.sort) {
+      case "name_desc": return -nameOrder(a, b);
+      case "stock_desc": return descending(a, b, (i) => itemStock(i, options.godownId).onHand);
+      case "free_asc": return itemStock(a, options.godownId).free - itemStock(b, options.godownId).free || nameOrder(a, b);
+      case "value_desc": return descending(a, b, (i) => itemStock(i, options.godownId).onHand * i.costPrice);
+      case "price_desc": return descending(a, b, (i) => i.salePrice);
+      default: return nameOrder(a, b);
+    }
+  });
+}
+
+/** Clamp a page after the dataset changes; the caller can display returned bounds. */
+export function paginateItemList<T>(items: T[], requestedPage: number, pageSize = 25) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const page = Number.isFinite(requestedPage) ? Math.min(Math.max(1, Math.floor(requestedPage)), totalPages) : 1;
+  const start = (page - 1) * pageSize;
+  return { page, totalPages, start, rows: items.slice(start, start + pageSize) };
+}
+
+/** Escape CSV syntax and spreadsheet formulas in user-supplied master text. */
+function csvField(value: string | number) {
+  const raw = String(value);
+  const safe = typeof value === "string" && /^[\s\u0000-\u001f]*[=+@\-]/u.test(raw) ? `'${raw}` : raw;
+  return `"${safe.replaceAll('"', '""')}"`;
+}
+
+/** Export exactly the filtered and sorted rows, never an unseen page or another organisation. */
+export function itemListCsv(items: Item[], godownId: string): string {
+  const fields = ["Item", "SKU", "Category", "Brand", "HSN", "GST %", "On hand", "Held", "Free", "Unit", "Sale price", "Cost price", "Active"];
+  const records = items.map((item) => {
+    const s = itemStock(item, godownId);
+    return [item.name, item.sku, item.category, item.brand, item.hsn, item.gstRate, s.onHand, s.held, s.free, item.baseUom, item.salePrice, item.costPrice, item.active ? "Yes" : "No"];
+  });
+  return `\uFEFF${[fields, ...records].map((values) => values.map(csvField).join(",")).join("\r\n")}\r\n`;
+}
