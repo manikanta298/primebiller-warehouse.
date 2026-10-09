@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export function auditPackage(root) {
   const problems = [];
   const required = [
-    'compose.yaml', 'frontend.Dockerfile', 'backend/Dockerfile',
+    'compose.yaml', 'frontend/Dockerfile', 'backend/Dockerfile',
     'backend/package.json', 'backend/package-lock.json',
     'backend/src/app.ts', 'backend/src/rate-limit.ts',
     'backend/db/schema.sql', 'backend/db/migrations/002_grn_invoice_registry.sql',

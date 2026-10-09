@@ -10,7 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 let config;
 try { config = loadNpmConfig(root); }
 catch (error) { console.error(error.message); process.exit(1); }
-for (const path of ['.output/server/index.mjs', 'backend/dist/index.js']) {
+for (const path of ['frontend/.output/server/index.mjs', 'backend/dist/index.js']) {
   if (!existsSync(resolve(root, path))) {
     console.error(`Missing ${path}. Install packages and run: npm run build:all`);
     process.exit(1);
@@ -35,7 +35,7 @@ function run(label, script, cwd, env) {
   });
 }
 run('Express API', resolve(root, 'backend/dist/index.js'), resolve(root, 'backend'), config.backendEnv);
-run('React server', resolve(root, '.output/server/index.mjs'), root, config.frontendEnv);
+run('React server', resolve(root, 'frontend/.output/server/index.mjs'), resolve(root, 'frontend'), config.frontendEnv);
 gateway = createNpmGateway({ apiPort: config.apiPort, frontendPort: config.frontendPort });
 gateway.on('error', (err) => { console.error(`Gateway failed: ${err.message}`); shutdown(1); });
 gateway.listen(config.webPort, config.webHost, () => {

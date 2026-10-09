@@ -12,13 +12,29 @@ This is an incremental migration of the uploaded Girder inventory and GST app. T
 
 **Stage 5 approved:** `/masters` retains its four original tabs, tables and add/edit dialogs, with searchable/filterable lists, shared validation, organisation-isolated data, cycle-safe category trees and immutable historical HSN rates. See [STAGE_5_MASTERS.md](STAGE_5_MASTERS.md).
 
+## Repository layout
+
+```
+frontend/   React + TanStack Start app (src, public, tests, vite/ts config, Dockerfile, vercel.json)
+backend/    Express + MySQL API (src, db, scripts, Dockerfile)
+scripts/    Deployment, smoke-test and ops scripts (npm gateway, preflight, sync-shared)
+tests/      Deployment/ops tests (frontend rule tests live in frontend/tests)
+docker/     Nginx gateway config;  compose.yaml wires mysql + backend + frontend + gateway
+```
+
+Each side has its own `package.json` and lockfile. Root `npm run ...` scripts orchestrate both
+(`install:all`, `build:all`, `start`, `test`, `sync:shared`). After editing a shared rule in
+`frontend/src/lib`, run `npm run sync:shared` to refresh `backend/src/shared`.
+**Vercel:** set the project's *Root Directory* to `frontend`.
+
+
 ## Preferred quick start (npm — no Docker required)
 
 Use **Node.js 22**, **npm 10+**, and an existing MySQL 8 database. From the project root:
 
 ```bash
 npm install
-npm run install:backend
+npm run install:all
 cp .env.npm.example .env.npm
 # Set DATABASE_URL, unique JWT_SECRET/SETTINGS_KEY, APP_URL and SMTP in .env.npm.
 # Start MySQL separately and create the girder database.
@@ -43,10 +59,10 @@ docker compose up -d --build
 - API health: http://localhost:8080/health
 - Local SMTP inbox: http://localhost:8025
 - SQL schema: `backend/db/schema.sql` (all tables), `backend/db/migrations/001_password_reset.sql` (upgrade for existing installations)
-- Tests: `npm run test:conversion` (Node.js 22), or separate Stage scripts including `npm run test:parties`.
+- Tests: `npm run test:frontend` (Node.js 22), or separate Stage scripts including `npm run test:parties`.
 - Full setup, first Owner account instructions, limits and checkpoint: [CONVERSION_STATUS.md](CONVERSION_STATUS.md)
 
-The gateway proxies `/api/v1` to Express and the remaining routes to the React/TanStack Start server. Both applications have their own Dockerfiles (`frontend.Dockerfile`, `backend/Dockerfile`), and MySQL data is persisted in a named Docker volume. No real emails are sent to customers in the default local environment: Mailpit catches reset emails.
+The gateway proxies `/api/v1` to Express and the remaining routes to the React/TanStack Start server. Both applications have their own Dockerfiles (`frontend/Dockerfile`, `backend/Dockerfile`), and MySQL data is persisted in a named Docker volume. No real emails are sent to customers in the default local environment: Mailpit catches reset emails.
 
 For hosting, supply verified SMTP credentials, HTTPS, a real `APP_URL`, secure secrets, and database backups. The existing mock frontend mode remains available for development *outside Docker* when `VITE_API_URL` is not set.
 
@@ -56,11 +72,11 @@ The `/warehouses` screen now supports org-scoped warehouse search and status fil
 
 ## Stage 7 — Parties / Customers & Suppliers (approved)
 
-`/parties` retains its original list with type, blocked-state and search filters. `/parties/:id` validates GSTIN/PAN/state, contact and credit/payment terms; shows read-only receivables/payables and enforces role permissions. Demo parties are organisation-isolated. The Express API forbids editing outstanding balances, foreign records or party IDs and uses the existing MySQL schema; no Stage 7 migration required. See [STAGE_7_PARTIES.md](STAGE_7_PARTIES.md). `npm run test:conversion` covers **48 tests** across Stages 2–7.
+`/parties` retains its original list with type, blocked-state and search filters. `/parties/:id` validates GSTIN/PAN/state, contact and credit/payment terms; shows read-only receivables/payables and enforces role permissions. Demo parties are organisation-isolated. The Express API forbids editing outstanding balances, foreign records or party IDs and uses the existing MySQL schema; no Stage 7 migration required. See [STAGE_7_PARTIES.md](STAGE_7_PARTIES.md). `npm run test:frontend` covers **48 tests** across Stages 2–7.
 
 ## Stage 8 — Sales Orders (approved)
 
-`/sales-orders` and `/sales-orders/:id` retain their original list/editor layouts, with organisation-scoped list search/pagination, IST dates, validated line-entry, real-time GST/credit calculations, blocked customer/inactive master checks, atomic stock holds and cancellation/release rules. Repeated item lines are aggregated before free-stock validation. The server validates editable fields and rejects cross-organisation or forged records. `npm run test:sales-orders` runs the 10 new pure-rule tests; `npm run test:conversion` runs all **58** stage regression tests. No Stage 8 SQL migration is necessary; see [STAGE_8_SALES_ORDERS.md](STAGE_8_SALES_ORDERS.md).
+`/sales-orders` and `/sales-orders/:id` retain their original list/editor layouts, with organisation-scoped list search/pagination, IST dates, validated line-entry, real-time GST/credit calculations, blocked customer/inactive master checks, atomic stock holds and cancellation/release rules. Repeated item lines are aggregated before free-stock validation. The server validates editable fields and rejects cross-organisation or forged records. `npm run test:sales-orders` runs the 10 new pure-rule tests; `npm run test:frontend` runs all **58** stage regression tests. No Stage 8 SQL migration is necessary; see [STAGE_8_SALES_ORDERS.md](STAGE_8_SALES_ORDERS.md).
 
 ## Stage 9 — Delivery Challans (approved)
 
@@ -68,15 +84,15 @@ The `/challans` list preserves its status chips and nine columns, adding search,
 
 ## Stage 10 — Tax Invoices (approved)
 
-`/invoices`, `/invoices/new`, and `/invoices/:id` retain the eight-column invoice list, challan conversion, original tax summary and linked-document panels. This stage adds invoice search and pagination, organisation isolation, server-backed issue validation, organisation-specific CGST/SGST/IGST preview, India business-date validation, browser A4 printing, and reason-logged cancellation of current-month unpaid invoices with atomic restoration of advances and receivables. A cancelled invoice number is never reused. No new SQL migration is needed. **83/83 native regression tests pass** (`npm run test:conversion`). See [STAGE_10_TAX_INVOICES.md](STAGE_10_TAX_INVOICES.md) for review and production limitations. Live IRN/e-invoicing, credit notes, accounting journals, MySQL/Docker integration and pixel-perfect browser comparison are not verified or implemented as noted.
+`/invoices`, `/invoices/new`, and `/invoices/:id` retain the eight-column invoice list, challan conversion, original tax summary and linked-document panels. This stage adds invoice search and pagination, organisation isolation, server-backed issue validation, organisation-specific CGST/SGST/IGST preview, India business-date validation, browser A4 printing, and reason-logged cancellation of current-month unpaid invoices with atomic restoration of advances and receivables. A cancelled invoice number is never reused. No new SQL migration is needed. **83/83 native regression tests pass** (`npm run test:frontend`). See [STAGE_10_TAX_INVOICES.md](STAGE_10_TAX_INVOICES.md) for review and production limitations. Live IRN/e-invoicing, credit notes, accounting journals, MySQL/Docker integration and pixel-perfect browser comparison are not verified or implemented as noted.
 
 ## Stage 11 — Receipts & Advances (approved)
 
-`/receipts` and `/receipts/new` retain the original receipt/advance layout. This stage adds organisation-safe receipt and advance lists, search and pagination, Indian business-date and currency validation, exact-paise oldest-first or manual allocation, noncash reference checks, duplicate/missing invoice protection and role-gated posting. Express validates and posts receivables, receipt numbers, invoice payments, sales-order links, and unused advances in a single MySQL transaction; demo mode shares the same rules and tenant boundaries. No new SQL migration is necessary; the existing Docker, JWT and SMTP setup is included. **96/96 native rule tests pass** (`npm run test:conversion`). See [STAGE_11_RECEIPTS_ADVANCES.md](STAGE_11_RECEIPTS_ADVANCES.md) for review steps and production limitations. Live MySQL/Docker end-to-end execution, browser pixel-perfect comparisons, bank reconciliation and cheque-clearance workflows remain outside this approval build.
+`/receipts` and `/receipts/new` retain the original receipt/advance layout. This stage adds organisation-safe receipt and advance lists, search and pagination, Indian business-date and currency validation, exact-paise oldest-first or manual allocation, noncash reference checks, duplicate/missing invoice protection and role-gated posting. Express validates and posts receivables, receipt numbers, invoice payments, sales-order links, and unused advances in a single MySQL transaction; demo mode shares the same rules and tenant boundaries. No new SQL migration is necessary; the existing Docker, JWT and SMTP setup is included. **96/96 native rule tests pass** (`npm run test:frontend`). See [STAGE_11_RECEIPTS_ADVANCES.md](STAGE_11_RECEIPTS_ADVANCES.md) for review steps and production limitations. Live MySQL/Docker end-to-end execution, browser pixel-perfect comparisons, bank reconciliation and cheque-clearance workflows remain outside this approval build.
 
 ## Stage 12 — Purchase Orders (approved)
 
-The `/purchases` list retains the original PO/GRN tabs and seven PO columns, with organisation-aware search, status filters and 25-row pagination. `/purchases/new` has an India-date default, active supplier and godown selection, strict line quantities/prices and live CGST/SGST/IGST calculations. Owner/Manager can raise an approved/open order or save a draft, later approve it at `/purchases/:id`, or cancel an unreceived order with an audit reason. The Express API and mock share validation and organisation isolation; linked GRNs cannot receive draft, cancelled or fully received orders and cannot over-receive duplicate PO line submissions. MySQL DDL and Docker/JWT/SMTP infrastructure are unchanged. **109/109 native tests pass** (`npm run test:conversion`), including 13 new PO tests. See [STAGE_12_PURCHASE_ORDERS.md](STAGE_12_PURCHASE_ORDERS.md). Live Docker/MySQL and pixel-perfect browser verification remain outstanding.
+The `/purchases` list retains the original PO/GRN tabs and seven PO columns, with organisation-aware search, status filters and 25-row pagination. `/purchases/new` has an India-date default, active supplier and godown selection, strict line quantities/prices and live CGST/SGST/IGST calculations. Owner/Manager can raise an approved/open order or save a draft, later approve it at `/purchases/:id`, or cancel an unreceived order with an audit reason. The Express API and mock share validation and organisation isolation; linked GRNs cannot receive draft, cancelled or fully received orders and cannot over-receive duplicate PO line submissions. MySQL DDL and Docker/JWT/SMTP infrastructure are unchanged. **109/109 native tests pass** (`npm run test:frontend`), including 13 new PO tests. See [STAGE_12_PURCHASE_ORDERS.md](STAGE_12_PURCHASE_ORDERS.md). Live Docker/MySQL and pixel-perfect browser verification remain outstanding.
 
 ## Stage 13 — Goods Receipts (GRN) (approved)
 
@@ -84,7 +100,7 @@ The original GRN list, posting form, and immutable receipt detail are retained a
 
 ## Stage 14 — Stock Transfers (approved)
 
-`/transfers`, `/transfers/new`, and `/transfers/:id` retain the original table/form/detail layouts. New organisation-safe search, paging and date defaults accompany shared frontend/Express business rules that aggregate repeated item/batch quantities, check active warehouses and reserved/free inventory, validate exact receiving quantities/shortage reasons, and protect dispatch/receipt/cancellation under one MySQL transaction with row locking and stock-ledger audit. The demo layer now isolates transfers by organisation and reconciles the seeded in-transit example. Existing MySQL schema and migrations plus Docker/JWT/SMTP infrastructure remain intact; no migration is required. **138/138 native regression tests pass** (`npm run test:conversion`, with 15 new Stage 14 tests). See [STAGE_14_STOCK_TRANSFERS.md](STAGE_14_STOCK_TRANSFERS.md) for review steps and the outstanding live/visual verification.
+`/transfers`, `/transfers/new`, and `/transfers/:id` retain the original table/form/detail layouts. New organisation-safe search, paging and date defaults accompany shared frontend/Express business rules that aggregate repeated item/batch quantities, check active warehouses and reserved/free inventory, validate exact receiving quantities/shortage reasons, and protect dispatch/receipt/cancellation under one MySQL transaction with row locking and stock-ledger audit. The demo layer now isolates transfers by organisation and reconciles the seeded in-transit example. Existing MySQL schema and migrations plus Docker/JWT/SMTP infrastructure remain intact; no migration is required. **138/138 native regression tests pass** (`npm run test:frontend`, with 15 new Stage 14 tests). See [STAGE_14_STOCK_TRANSFERS.md](STAGE_14_STOCK_TRANSFERS.md) for review steps and the outstanding live/visual verification.
 
 ## Stage 15 — Stock Adjustments (ready for review)
 
@@ -92,7 +108,7 @@ The original GRN list, posting form, and immutable receipt detail are retained a
 
 ## Stage 16 — Stock Ledger & Alerts (ready for review)
 
-`/stock-ledger` preserves the existing ledger layout, filters item/warehouse/batch/type/doc/date, derives actual balances from all physical movements, and includes 25-row pagination and CSV export (filtered and protected from spreadsheet formulas). The `GET /api/v1/stock/ledger` endpoint reads up to 5,000 org-scoped matching movements and returns a clear error on larger queries rather than returning a misleading partial ledger. `/alerts` retains the original inventory alert tabs, adds search and godown filtering, enforces tenant-scoped acknowledgement and role checks, and links permitted users to new purchase orders and stock transfers. No new MySQL migration is required. **168/168 native rule tests pass** (`npm run test:conversion`, 14 new Stage 16 tests). Review [STAGE_16_STOCK_LEDGER_ALERTS.md](STAGE_16_STOCK_LEDGER_ALERTS.md) for use and production verification limits. Installed-dependency compilation, live Docker/MySQL and browser pixel-parity remain unverified.
+`/stock-ledger` preserves the existing ledger layout, filters item/warehouse/batch/type/doc/date, derives actual balances from all physical movements, and includes 25-row pagination and CSV export (filtered and protected from spreadsheet formulas). The `GET /api/v1/stock/ledger` endpoint reads up to 5,000 org-scoped matching movements and returns a clear error on larger queries rather than returning a misleading partial ledger. `/alerts` retains the original inventory alert tabs, adds search and godown filtering, enforces tenant-scoped acknowledgement and role checks, and links permitted users to new purchase orders and stock transfers. No new MySQL migration is required. **168/168 native rule tests pass** (`npm run test:frontend`, 14 new Stage 16 tests). Review [STAGE_16_STOCK_LEDGER_ALERTS.md](STAGE_16_STOCK_LEDGER_ALERTS.md) for use and production verification limits. Installed-dependency compilation, live Docker/MySQL and browser pixel-parity remain unverified.
 
 ## Stage 17 — Reports & GSTR-1 (ready for approval)
 
@@ -145,7 +161,7 @@ Stage 23 adds a **read-only cross-module reconciliation** (`npm run smoke:workfl
 
 ## Stage 24 — Authentication gateway acceptance hardening
 
-The previous per-worker auth limiter used the shared gateway container socket IP, allowing one user to exhaust the login quota for all users behind Nginx. Stage 24 fixes client-IP resolution with a single trusted private proxy hop, gateway-overwritten forwarding headers and regressions to prevent reintroduction. `npm run test:conversion` now runs **251** passing tests and `npm run audit:deployment` rejects a publicly exposed backend or unsafe forwarding configuration. **Do not expose the backend service directly** or assume that this one-hop setup works unchanged behind a separate CDN/load balancer; trusted upstream real-IP setup is required there. No screen or schema changes. See [`STAGE_24_PROXY_SECURITY.md`](STAGE_24_PROXY_SECURITY.md). Full Docker/MySQL/browser/SMTP acceptance has not been run and production sign-off is still blocked.
+The previous per-worker auth limiter used the shared gateway container socket IP, allowing one user to exhaust the login quota for all users behind Nginx. Stage 24 fixes client-IP resolution with a single trusted private proxy hop, gateway-overwritten forwarding headers and regressions to prevent reintroduction. `npm run test:frontend` now runs **251** passing tests and `npm run audit:deployment` rejects a publicly exposed backend or unsafe forwarding configuration. **Do not expose the backend service directly** or assume that this one-hop setup works unchanged behind a separate CDN/load balancer; trusted upstream real-IP setup is required there. No screen or schema changes. See [`STAGE_24_PROXY_SECURITY.md`](STAGE_24_PROXY_SECURITY.md). Full Docker/MySQL/browser/SMTP acceptance has not been run and production sign-off is still blocked.
 
 ## Stage 26 — Per-warehouse inventory dashboards (npm-first)
 

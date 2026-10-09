@@ -9,7 +9,7 @@ import { runAuthenticatedSmoke } from '../scripts/authenticated-smoke.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const required = [
-  'compose.yaml', 'frontend.Dockerfile', 'backend/Dockerfile',
+  'compose.yaml', 'frontend/Dockerfile', 'backend/Dockerfile',
   'backend/package.json', 'backend/package-lock.json',
   'backend/db/schema.sql', 'backend/db/migrations/002_grn_invoice_registry.sql',
   'docker/nginx.conf', 'scripts/http-smoke.mjs', 'scripts/backup-mysql.sh',

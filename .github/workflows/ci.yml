@@ -11,13 +11,16 @@ jobs:
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: frontend/package-lock.json
       - name: Install frontend dependencies
         run: npm ci --no-audit --no-fund
       - name: Unit and regression tests
@@ -44,3 +47,14 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Typecheck and compile
         run: npm run build
+
+  deployment:
+    name: Deployment scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deployment and config tests
+        run: npm run test:ops
