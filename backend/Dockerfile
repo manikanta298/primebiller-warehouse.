@@ -10,4 +10,4 @@ RUN npm run build
 ENV NODE_ENV=production PORT=4000
 USER node
 EXPOSE 4000
-CMD ["npm", "start"]
+CMD ["/bin/sh", "-c", "npm run db:migrate && exec npm start"]
