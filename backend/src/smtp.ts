@@ -95,10 +95,34 @@ function connected(socket: Socket, event: "connect" | "secureConnect"): Promise<
 }
 
 export function smtpConfigured(): boolean {
-  return !!(config.smtpHost && config.smtpFrom);
+  return config.mailDeliveryMode === "console" || (config.mailDeliveryMode === "smtp" && !!(config.smtpHost && config.smtpFrom));
 }
 
 export async function sendPasswordResetEmail(recipient: string, link: string): Promise<void> {
+  await sendEmail(recipient, "Reset your Girder password", [
+    "A request was made to reset your Girder password.",
+    "", "Open this link within 60 minutes:", link,
+    "", "If you did not request this, you can ignore this email.",
+  ].join("\r\n"));
+}
+
+export async function sendRegistrationEmail(recipient: string, name: string): Promise<void> {
+  await sendEmail(recipient, "Welcome to Girder", [
+    `Hello ${name},`, "", "Your account has been created as the organisation Owner (master admin).",
+    "", "Sign in:", `${config.appUrl.replace(/\/$/, "")}/login`,
+  ].join("\r\n"));
+}
+
+async function sendEmail(recipient: string, subject: string, body: string): Promise<void> {
+  const to = cleanHeader(recipient);
+  cleanHeader(subject);
+  if (!/^[^\s@<>]+@[^\s@<>]+$/.test(to)) throw new Error("Invalid SMTP email address");
+  if (config.mailDeliveryMode === "console") {
+    // Explicit test mode: no sockets, authentication, or SMTP credentials used.
+    console.log("[TEST EMAIL]", JSON.stringify({ delivery: "console", to, subject, text: body }));
+    return;
+  }
+  if (config.mailDeliveryMode !== "smtp") throw new Error("Invalid MAIL_DELIVERY_MODE value");
   if (!smtpConfigured()) throw new Error("SMTP_HOST and SMTP_FROM are required for password recovery");
   const host = config.smtpHost!;
   const mode = config.smtpSecurity;
@@ -133,7 +157,6 @@ export async function sendPasswordResetEmail(recipient: string, link: string): P
     }
 
     const from = cleanHeader(config.smtpFrom!);
-    const to = cleanHeader(recipient);
     // Envelope FROM is a bare address, while the From header may include a display name.
     const fromAddress = from.match(/<([^<>]+)>$/)?.[1] ?? from;
     if (!/^[^\s@<>]+@[^\s@<>]+$/.test(fromAddress) || !/^[^\s@<>]+@[^\s@<>]+$/.test(to)) {
@@ -142,13 +165,8 @@ export async function sendPasswordResetEmail(recipient: string, link: string): P
     await reader.command(`MAIL FROM:<${fromAddress}>`, [250]);
     await reader.command(`RCPT TO:<${to}>`, [250, 251]);
     await reader.command("DATA", [354]);
-    const body = [
-      "A request was made to reset your Girder password.",
-      "", "Open this link within 60 minutes:", link,
-      "", "If you did not request this, you can ignore this email.",
-    ].join("\r\n");
     const message = [
-      `From: ${from}`, `To: ${to}`, "Subject: Reset your Girder password",
+      `From: ${from}`, `To: ${to}`, `Subject: ${subject}`,
       "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8",
       "Content-Transfer-Encoding: 8bit", "", body,
     ].join("\r\n").split("\r\n").map((line) => line.startsWith(".") ? `.${line}` : line).join("\r\n");
