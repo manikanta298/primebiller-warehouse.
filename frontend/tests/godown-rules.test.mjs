@@ -28,6 +28,21 @@ test('GSTIN checksum and prefix must correspond to the warehouse state', () => {
   assert.ok(godownProblems({ ...blank, gstin, stateCode: '37' }).some((s) => s.includes('GSTIN state')));
 });
 
+test('warehouse GSTIN accepts NA case-insensitively while retaining blank and state validation', () => {
+  for (const gstin of ['NA', 'na', ' Na ']) {
+    assert.equal(normaliseGodown({ ...blank, gstin }).gstin, 'NA');
+    assert.deepEqual(godownProblems({ ...blank, gstin }), []);
+  }
+  for (const gstin of ['', '   ', undefined]) {
+    assert.equal(normaliseGodown({ ...blank, gstin }).gstin, undefined);
+    assert.deepEqual(godownProblems({ ...blank, gstin }), []);
+  }
+  assert.ok(godownProblems({ ...blank, gstin: 'NA', stateCode: '99' }).some((s) => s.includes('state')));
+  for (const gstin of ['N/A', 'NAA', 'NOT APPLICABLE', '36AAXFS1234K1Z0']) {
+    assert.ok(godownProblems({ ...blank, gstin }).some((s) => s.includes('GSTIN')));
+  }
+});
+
 test('inactive warehouses cannot be selected as the sales default', () => {
   assert.ok(godownProblems({ ...blank, active: false, defaultForSales: true }).some((s) => s.includes('default')));
 });

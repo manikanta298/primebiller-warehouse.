@@ -25,7 +25,8 @@ export function godownProblems(input: GodownInput): string[] {
   if (d.address.length > 400) problems.push("Address cannot exceed 400 characters");
   if (d.manager.length > 120) problems.push("Manager cannot exceed 120 characters");
   if (!STATE_CODES.has(d.stateCode)) problems.push("Choose a valid two-digit GST state code");
-  if (d.gstin) {
+  // NA is an explicit warehouse-only marker for no separate GST registration.
+  if (d.gstin && d.gstin !== "NA") {
     if (!isValidGstin(d.gstin)) problems.push("GSTIN is invalid");
     else if (stateFromGstin(d.gstin) !== d.stateCode) problems.push("GSTIN state must match the warehouse state code");
   }
