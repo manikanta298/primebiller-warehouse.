@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Building2, ChevronRight, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { getSession, setSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FirstAdminRegistration } from "@/components/first-admin-registration";
 
 export const Route = createFileRoute("/login")({
   ssr: false,
@@ -40,6 +41,14 @@ function LoginPage() {
   const [email, setEmail] = useState(usingMock ? "owner@svt.in" : "");
   const [password, setPassword] = useState(usingMock ? "girder" : "");
   const [auth, setAuth] = useState<LoginResponse | null>(null);
+  const [registering, setRegistering] = useState(false);
+  const setupStatus = useQuery({
+    queryKey: ["first-admin-status"],
+    queryFn: api.firstAdminStatus,
+    enabled: !usingMock && !resetToken && !auth,
+    retry: false,
+    staleTime: 0,
+  });
 
   const login = useMutation({
     mutationFn: () => api.login(email, password),
@@ -146,6 +155,11 @@ function LoginPage() {
               )}
               <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setRecover(false); setRecoverySent(false); }}>Back to sign in</button>
             </div>
+          ) : registering ? (
+            <FirstAdminRegistration onSuccess={(res) => {
+              const org = res.orgs[0];
+              if (org) choose(res, org.id);
+            }} onCancel={() => { setRegistering(false); setupStatus.refetch(); }} />
           ) : !auth ? (
             <form
               onSubmit={(e) => {
@@ -172,6 +186,9 @@ function LoginPage() {
               <Button type="submit" className="w-full" disabled={login.isPending}>
                 {login.isPending && <Loader2 className="animate-spin" />} Sign in
               </Button>
+              {setupStatus.data?.available && (
+                <Button type="button" variant="outline" className="w-full" onClick={() => setRegistering(true)}>Register first master admin</Button>
+              )}
               {usingMock && (
                 <div className="rounded-md border bg-card p-3 text-xs text-muted-foreground">
                   <div className="mb-1 font-medium text-foreground">Demo accounts · password “girder”</div>

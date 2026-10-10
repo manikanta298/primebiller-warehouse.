@@ -86,8 +86,9 @@ class SmtpReader {
 
 function connected(socket: Socket, event: "connect" | "secureConnect"): Promise<void> {
   return new Promise((resolve, reject) => {
-    const fail = (e: Error) => { socket.removeListener(event, done); reject(e); };
-    const done = () => { socket.removeListener("error", fail); resolve(); };
+    const timer = setTimeout(() => socket.destroy(new Error("SMTP connection timed out")), 15000);
+    const fail = (e: Error) => { clearTimeout(timer); socket.removeListener(event, done); reject(e); };
+    const done = () => { clearTimeout(timer); socket.removeListener("error", fail); resolve(); };
     socket.once("error", fail);
     socket.once(event, done);
   });
@@ -153,7 +154,9 @@ export async function sendPasswordResetEmail(recipient: string, link: string): P
     ].join("\r\n").split("\r\n").map((line) => line.startsWith(".") ? `.${line}` : line).join("\r\n");
     socket.write(message + "\r\n.\r\n");
     await reader.response([250]);
-    await reader.command("QUIT", [221]);
+    // The server has accepted the message. A dropped QUIT reply must not revoke
+    // an already emailed reset token and turn its link into an invalid one.
+    try { await reader.command("QUIT", [221]); } catch { /* delivery already accepted */ }
   } finally {
     reader?.dispose();
     socket.destroy();
