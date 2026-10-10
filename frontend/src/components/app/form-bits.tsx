@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export function Field({ label, hint, error, children, className }: { label: string; hint?: string | undefined; error?: string | null | undefined; children: ReactNode; className?: string | undefined }) {
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div className={cn("min-w-0 space-y-1.5", className)}>
       <Label className="text-xs font-medium">{label}</Label>
       {children}
       {error ? <p className="text-xs text-destructive">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
@@ -16,7 +16,7 @@ export function NativeSelect(props: React.SelectHTMLAttributes<HTMLSelectElement
   return (
     <select
       {...props}
-      className={cn("h-9 w-full rounded-md border bg-card px-2 text-sm outline-none focus:ring-1 focus:ring-ring", props.className)}
+      className={cn("h-11 w-full min-w-0 rounded-md border bg-card px-2 text-base outline-none sm:h-9 sm:text-sm focus:ring-1 focus:ring-ring", props.className)}
     />
   );
 }

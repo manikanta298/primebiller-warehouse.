@@ -228,7 +228,7 @@ function EditDialog({ kind, initial, onClose }: { kind: MasterKind; initial: Dra
         <DialogHeader><DialogTitle>{d.id ? "Edit" : "New"} {LABEL[kind]}</DialogTitle></DialogHeader>
         <form
           id="master-form"
-          className="grid grid-cols-2 gap-3"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
           onSubmit={(e) => { e.preventDefault(); if (issues.length) { toast.error(issues[0]); return; } m.mutate(); }}
         >
           {kind === "uoms" && (
@@ -245,8 +245,8 @@ function EditDialog({ kind, initial, onClose }: { kind: MasterKind; initial: Dra
           )}
           {kind === "categories" && (
             <>
-              <Field label="Name" className="col-span-2"><Input autoFocus value={str("name")} onChange={(e) => set("name", e.target.value)} /></Field>
-              <Field label="Parent" className="col-span-2">
+              <Field label="Name" className="sm:col-span-2"><Input autoFocus value={str("name")} onChange={(e) => set("name", e.target.value)} /></Field>
+              <Field label="Parent" className="sm:col-span-2">
                 <NativeSelect value={str("parentId")} onChange={(e) => set("parentId", e.target.value || null)}>
                   <option value="">None (top level)</option>
                   {categoryTree(cats).map(({ row }) => row).filter((c) => c.id !== d.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -261,13 +261,13 @@ function EditDialog({ kind, initial, onClose }: { kind: MasterKind; initial: Dra
             </>
           )}
           {kind === "brands" && (
-            <Field label="Brand name" className="col-span-2"><Input autoFocus value={str("name")} onChange={(e) => set("name", e.target.value)} /></Field>
+            <Field label="Brand name" className="sm:col-span-2"><Input autoFocus value={str("name")} onChange={(e) => set("name", e.target.value)} /></Field>
           )}
           {kind === "hsn" && (
             <>
               <Field label="HSN code" hint="4, 6 or 8 digits"><Input autoFocus disabled={isHsnRevision} value={str("code")} onChange={(e) => set("code", e.target.value.replace(/\D/g, "").slice(0, 8))} className="num" /></Field>
               <Field label="Effective from" hint="Documents use the rate in force on their date"><Input type="date" disabled={isHsnRevision} value={str("effectiveFrom")} onChange={(e) => set("effectiveFrom", e.target.value)} /></Field>
-              <Field label="Description" className="col-span-2"><Input value={str("description")} onChange={(e) => set("description", e.target.value)} /></Field>
+              <Field label="Description" className="sm:col-span-2"><Input value={str("description")} onChange={(e) => set("description", e.target.value)} /></Field>
               <Field label="GST rate">
                 <NativeSelect disabled={isHsnRevision} value={str("gstRate")} onChange={(e) => set("gstRate", Number(e.target.value))}>
                   {GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -277,12 +277,12 @@ function EditDialog({ kind, initial, onClose }: { kind: MasterKind; initial: Dra
             </>
           )}
           {issues.length > 0 && (
-            <div className="col-span-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+            <div className="sm:col-span-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
               <p className="font-medium">Please correct the following:</p>
               <ul className="list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
             </div>
           )}
-          <label className="col-span-2 flex items-center gap-2 text-sm">
+          <label className="sm:col-span-2 flex items-center gap-2 text-sm">
             <Switch checked={d["active"] !== false} onCheckedChange={(v) => set("active", v)} /> Active
           </label>
         </form>

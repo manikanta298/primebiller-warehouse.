@@ -43,7 +43,7 @@ function DashboardPage() {
         actions={canCreateOrder ? (
           <Button variant="ember" asChild>
             <Link to="/sales-orders/$id" params={{ id: "new" }}>
-              <Plus /> New sales order <span className="kbd ml-1 border-ember-foreground/30 bg-transparent text-ember-foreground">Ctrl N</span>
+              <Plus /> New sales order <span className="kbd ml-1 hidden sm:inline border-ember-foreground/30 bg-transparent text-ember-foreground">Ctrl N</span>
             </Link>
           </Button>
         ) : undefined}
@@ -61,7 +61,7 @@ function DashboardPage() {
             <Kpi icon={PackageX} label="Out of stock" value={String(data.outOfStock)} tone="danger" tab={canViewAlerts ? "out_of_stock" : undefined} />
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
             <Panel title="Stock value by godown">
               <div className="space-y-4">
                 {data.valueByGodown.length === 0 && <p className="text-sm text-muted-foreground">No godowns set up for this organisation.</p>}
@@ -71,7 +71,7 @@ function DashboardPage() {
                   return (
                     <div key={g.godownId}>
                       <div className="mb-1 flex justify-between text-sm">
-                        <span>{g.name}</span>
+                        <span className="min-w-0 truncate">{g.name}</span>
                         <span className="num">{formatCompactINR(g.value)}</span>
                       </div>
                       <div className="h-2.5 rounded-full bg-muted">
@@ -103,7 +103,7 @@ function DashboardPage() {
             </Panel>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <Panel title="High-value movements">
               {data.highValueMovements.length === 0 ? <p className="text-sm text-muted-foreground">No stock movements in the past 7 days.</p> : <div className="overflow-x-auto">
               <table className="min-w-[34rem] w-full text-sm">
@@ -164,20 +164,20 @@ function DashboardPage() {
 
 function Kpi({ icon: Icon, label, value, hint, tone, tab, ledgerDate }: { icon: typeof Boxes; label: string; value: string; hint?: string; tone?: "primary" | "warn" | "ember" | "danger"; tab?: "near_expiry" | "over_aged" | "below_reorder" | "out_of_stock" | undefined; ledgerDate?: string | undefined }) {
   const body = <KpiBody Icon={Icon} label={label} value={value} tone={tone} />;
-  const cls = "block rounded-lg border bg-card p-4 transition-colors hover:border-primary";
+  const cls = "block min-w-0 rounded-lg border bg-card p-3 sm:p-4 transition-colors hover:border-primary";
   if (tab) return <Link to="/alerts" search={{ tab }} className={cls} title={hint}>{body}</Link>;
   if (ledgerDate) return <Link to="/stock-ledger" search={{ from: ledgerDate }} className={cls}>{body}</Link>;
-  return <div className="rounded-lg border bg-card p-4" title={hint}>{body}</div>;
+  return <div className="min-w-0 rounded-lg border bg-card p-3 sm:p-4" title={hint}>{body}</div>;
 }
 
 function KpiBody({ Icon, label, value, tone }: { Icon: typeof Boxes; label: string; value: string; tone?: "primary" | "warn" | "ember" | "danger" | undefined }) {
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-2">
         <span className="eyebrow">{label}</span>
         <Icon
           className={cn(
-            "size-4",
+            "size-4 shrink-0",
             tone === "primary" && "text-primary",
             tone === "warn" && "text-warning",
             tone === "ember" && "text-ember",
@@ -186,14 +186,14 @@ function KpiBody({ Icon, label, value, tone }: { Icon: typeof Boxes; label: stri
           )}
         />
       </div>
-      <div className="num mt-2 text-2xl font-semibold tracking-tight">{value}</div>
+      <div className="num mt-2 break-words text-xl sm:text-2xl font-semibold tracking-tight">{value}</div>
     </>
   );
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border bg-card p-5">
+    <section className="min-w-0 rounded-lg border bg-card p-4 sm:p-5">
       <h2 className="mb-4 text-sm font-semibold">{title}</h2>
       {children}
     </section>

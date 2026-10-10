@@ -183,3 +183,25 @@
   .print-footer { border-top: 1px solid #aaa; padding-top: 5px; text-align: center; }
   .print-cancelled, .print-test-warning { border: 2px solid #111; font-weight: 700; padding: 8px; text-align: center; margin-top: 12px; }
 }
+
+
+/* Keep wide tables inside their own scroll containers rather than widening pages. */
+@layer components {
+  .app-content :where(.grid) > * { min-width: 0; }
+  .app-content :where(.overflow-x-auto) { max-width: 100%; overscroll-behavior-x: contain; }
+}
+
+@media (pointer: coarse) {
+  button:not([role="switch"]):not([role="checkbox"]),
+  a[role="button"], [role="menuitem"] {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [role="dialog"], [data-state="open"], [data-state="closed"] {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

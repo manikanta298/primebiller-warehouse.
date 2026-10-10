@@ -15,7 +15,7 @@
     "build:all": "npm run build:frontend && npm run build:backend",
     "db:migrate": "node scripts/npm-backend-task.mjs db:migrate",
     "setup:owner": "node scripts/npm-backend-task.mjs setup:owner",
-    "test:frontend": "npm --prefix frontend run test:conversion && npm --prefix frontend run test:first-admin",
+    "test:frontend": "npm --prefix frontend run test:conversion && npm --prefix frontend run test:first-admin && npm --prefix frontend run test:responsive",
     "test:ops": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:backend": "npm --prefix backend test",
     "test": "npm run test:frontend && npm run test:backend && npm run test:ops",
