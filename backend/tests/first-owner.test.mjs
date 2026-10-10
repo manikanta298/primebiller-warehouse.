@@ -110,3 +110,29 @@ test('write failure rolls back all setup records; unavailable lock fails before 
   await assert.rejects(createFirstOwner(input, busy), (error) => error.status === 503);
   assert.deepEqual(busy.state.events, ['release']);
 });
+
+
+test('simple registration creates an Owner with blank tax details and a default business name', async () => {
+  const db = database();
+  const simple = { name: 'Test Owner', email: 'OWNER@example.com', mobile: '+91 9876543210', password: 'test-password-123' };
+  await createFirstOwner(simple, db);
+  const org = db.state.inserts.find((row) => row.sql.startsWith('INSERT INTO orgs'));
+  assert.deepEqual(org.params.slice(1), ["Test Owner's business", '', '', '']);
+  const user = db.state.inserts.find((row) => row.sql.startsWith('INSERT INTO users'));
+  assert.equal(user.params[3], simple.mobile);
+  const settings = JSON.parse(db.state.inserts.find((row) => row.sql.startsWith('INSERT INTO org_settings')).params[1]);
+  assert.equal(settings.gstin, '');
+  assert.equal(settings.pan, '');
+  assert.equal(settings.stateCode, '');
+  assert.equal(settings.phone, simple.mobile);
+  assert.equal(settings.legalName, "Test Owner's business");
+  assert.equal(db.state.inserts.filter((row) => row.sql.includes("'Owner'")).length, 1);
+});
+
+test('business details remain optional, but invalid provided tax and phone details are rejected', () => {
+  const simple = { name: 'Test Owner', email: 'owner@example.com', mobile: '+91 9876543210', password: 'test-password-123' };
+  assert.equal(firstOwnerInput.safeParse(simple).success, true);
+  assert.equal(firstOwnerInput.safeParse({ ...simple, orgName: '', orgGstin: '' }).success, true);
+  for (const mobile of ['123', 'not-a-phone', '+1234567890123456']) assert.equal(firstOwnerInput.safeParse({ ...simple, mobile }).success, false);
+  assert.equal(firstOwnerInput.safeParse({ ...simple, orgGstin: 'INVALID' }).success, false);
+});

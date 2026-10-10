@@ -9,13 +9,17 @@ import { isValidGstin, stateFromGstin } from "./shared/gst.js";
 import { fyLabel } from "./shared/numbering.js";
 import { today } from "./config.js";
 
+export const ownerPhoneInput = z.string().trim().max(20)
+  .regex(/^\+?[\d ()-]+$/, "Enter a valid phone number")
+  .refine((value) => { const digits = value.replace(/\D/g, "").length; return digits >= 7 && digits <= 15; }, "Use 7 to 15 digits for the phone number");
+
 export const firstOwnerInput = z.object({
-  orgName: z.string().trim().min(2).max(200),
-  orgGstin: z.string().trim().toUpperCase().refine(isValidGstin, "Enter a valid GSTIN"),
+  orgName: z.string().trim().max(200).refine((value) => !value || value.length >= 2, "Use at least 2 characters for the business name").optional().default(""),
+  orgGstin: z.string().trim().toUpperCase().refine((value) => !value || isValidGstin(value), "Enter a valid GSTIN").optional().default(""),
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(190).transform((value) => value.toLowerCase()),
   password: z.string().min(10, "Use at least 10 characters").max(128),
-  mobile: z.string().trim().max(20).optional().default(""),
+  mobile: z.union([ownerPhoneInput, z.literal("")]).optional().default(""),
 }).strict();
 
 export function verifySetupToken(provided: string, expected: string): void {
@@ -44,19 +48,20 @@ export async function createFirstOwner(input: unknown, database: Pick<Pool, "get
     }
     const orgId = newId("org");
     const userId = newId("u");
-    const stateCode = stateFromGstin(data.orgGstin);
+    const orgName = data.orgName || `${data.name}'s business`;
+    const stateCode = data.orgGstin ? stateFromGstin(data.orgGstin) : "";
     const fy = fyLabel(today());
     const startYear = 2000 + Number(fy.slice(0, 2));
     const settings = {
-      legalName: data.orgName, tradeName: data.orgName, gstin: data.orgGstin, pan: data.orgGstin.slice(2, 12),
-      address: "", stateCode, phone: "", email: data.email, bankName: "", bankAccount: "", ifsc: "",
+      legalName: orgName, tradeName: orgName, gstin: data.orgGstin, pan: data.orgGstin.slice(2, 12),
+      address: "", stateCode, phone: data.mobile, email: data.email, bankName: "", bankAccount: "", ifsc: "",
       invoiceTerms: "", jurisdiction: "",
       fyName: `FY ${startYear}-${String(startYear + 1).slice(2)}`, fyStart: `${startYear}-04-01`, fyEnd: `${startYear + 1}-03-31`, fyStatus: "open",
       composition: false, ewbThreshold: 50000, einvoiceThreshold: 50000000, roundOff: "nearest_rupee",
       adjApprovalLimit: 25000, reasonCodes: [],
       gsp: { provider: "", username: "", clientId: "", sandbox: true },
     };
-    await exec(conn, "INSERT INTO orgs (id, name, gstin, state_code, state_name) VALUES (?,?,?,?,?)", [orgId, data.orgName, data.orgGstin, stateCode, stateName(stateCode)]);
+    await exec(conn, "INSERT INTO orgs (id, name, gstin, state_code, state_name) VALUES (?,?,?,?,?)", [orgId, orgName, data.orgGstin, stateCode, stateCode ? stateName(stateCode) : ""]);
     await exec(conn, "INSERT INTO users (id, name, email, mobile, password_hash, active) VALUES (?,?,?,?,?,1)", [userId, data.name, data.email, data.mobile, passwordHash]);
     await exec(conn, "INSERT INTO user_roles (user_id, org_id, role) VALUES (?,?,'Owner')", [userId, orgId]);
     const series: Record<string, string> = { SO: "SO", DC: "DC", INV: "INV", RCT: "RCT", PO: "PO", GRN: "GRN", TRF: "TRF", ADJ: "ADJ" };
