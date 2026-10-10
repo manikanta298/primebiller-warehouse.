@@ -6,6 +6,9 @@ function req(name: string): string {
   return v;
 }
 
+const mailDeliveryMode = process.env["MAIL_DELIVERY_MODE"] ?? "smtp";
+if (!["smtp", "console"].includes(mailDeliveryMode)) throw new Error("MAIL_DELIVERY_MODE must be smtp or console");
+
 export const config = {
   port: Number(process.env["PORT"] ?? 4000),
   host: process.env["API_HOST"] ?? "0.0.0.0",
@@ -18,6 +21,7 @@ export const config = {
   setupRegistrationToken: process.env["SETUP_REGISTRATION_TOKEN"] ?? "",
   corsOrigins: (process.env["CORS_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   appUrl: process.env["APP_URL"] ?? "http://localhost:8080",
+  mailDeliveryMode,
   smtpHost: process.env["SMTP_HOST"] || undefined,
   smtpPort: Number(process.env["SMTP_PORT"] ?? 587),
   smtpSecurity: process.env["SMTP_SECURITY"] ?? "starttls",

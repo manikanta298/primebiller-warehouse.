@@ -127,3 +127,29 @@ Password-reset links remain single-use, expire after one hour, and invalidate ea
 
 For a new database, `db/schema.sql` includes `password_reset_tokens`. For existing databases,
 run `db/migrations/001_password_reset.sql` or rerun the idempotent schema migration.
+
+
+### Console email delivery for Render testing
+
+Set these backend environment variables and redeploy:
+
+```env
+MAIL_DELIVERY_MODE=console
+APP_URL=https://your-frontend.example.com
+```
+
+Use the actual public frontend origin for `APP_URL`. SMTP host, port, user, password,
+and sender are not required in console mode. No SMTP connection is opened, even
+when SMTP credentials are present. In Render's service Logs, search for
+`[TEST EMAIL]`. Each line contains JSON with `delivery`, `to`, `subject`, and `text`.
+Successful first-admin web registration logs a welcome confirmation. This does
+not add email verification or reopen registration on an initialized database.
+Forgot password logs a reset link for an existing active account; an unknown
+address returns the same response and produces no email. Open the logged link to
+test resetting the password. Links still expire after one hour and are single-use.
+
+Console mode is for test accounts: log readers can see email addresses and use
+password-reset links. Account passwords and SMTP credentials are never included
+in these email logs. A registration confirmation delivery failure does not undo
+the created account. To send real emails later, set `MAIL_DELIVERY_MODE=smtp`
+(the default), configure the provider's `SMTP_*` variables above, and redeploy.

@@ -44,16 +44,23 @@ async function listen(server) {
   return server.address().port;
 }
 
-async function fixture(options) {
+async function fixture(options = {}) {
+  const originalMode = config.mailDeliveryMode;
+  config.mailDeliveryMode = 'smtp';
   const smtp = mailServer(options);
   config.smtpHost = '127.0.0.1'; config.smtpPort = await listen(smtp.server);
   config.smtpSecurity = 'none'; config.smtpUser = undefined; config.smtpPassword = undefined;
   config.smtpFrom = 'Test <no-reply@example.com>'; config.appUrl = 'https://frontend.example.com';
-  const state = { tokens: new Map(), passwordHash: await bcrypt.hash('old-password-123', 4), version: 0 };
+  const state = { initialized: !options.empty, user: undefined, org: undefined, tokens: new Map(), passwordHash: await bcrypt.hash('old-password-123', 4), version: 0 };
   async function query(sql, params = []) {
     if (sql.includes('GET_LOCK')) return [[{ acquired: 1 }], []];
     if (sql.includes('RELEASE_LOCK')) return [[{ released: 1 }], []];
-    if (sql.startsWith('SELECT id FROM orgs LIMIT')) return [[{ id: 'org_existing' }], []];
+    if (sql.startsWith('SELECT id FROM orgs LIMIT') || sql.startsWith('SELECT id FROM users LIMIT')) return [state.initialized ? [{ id: 'existing' }] : [], []];
+    if (sql.startsWith('INSERT INTO orgs')) { state.org = { id: params[0], name: params[1], gstin: params[2], state_code: params[3], state_name: params[4], role: 'Owner' }; return [{ affectedRows: 1 }, []]; }
+    if (sql.startsWith('INSERT INTO users')) { state.user = { id: params[0], name: params[1], email: params[2], token_version: 0 }; return [{ affectedRows: 1 }, []]; }
+    if (sql.startsWith('INSERT INTO user_roles') || sql.startsWith('INSERT INTO doc_series') || sql.startsWith('INSERT INTO org_settings') || sql.startsWith('INSERT INTO print_profiles')) return [{ affectedRows: 1 }, []];
+    if (sql.startsWith('SELECT id, name, email, token_version')) return [[state.user], []];
+    if (sql.startsWith('SELECT o.id')) return [[state.org], []];
     if (sql.startsWith('SELECT id FROM users WHERE email')) return [params[0] === 'owner@example.com' ? [{ id: 'u_owner' }] : [], []];
     if (sql.startsWith('SELECT COUNT(*)')) return [[{ n: state.tokens.size }], []];
     if (sql.startsWith('INSERT INTO password_reset_tokens')) {
@@ -71,7 +78,7 @@ async function fixture(options) {
   }
   const originalQuery = pool.query, originalConnection = pool.getConnection;
   pool.query = query;
-  pool.getConnection = async () => ({ query, async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}, destroy() {} });
+  pool.getConnection = async () => ({ query, async beginTransaction() {}, async commit() { state.initialized = true; }, async rollback() {}, release() {}, destroy() {} });
   const app = createApp().listen(0, '127.0.0.1');
   await new Promise((resolve) => app.once('listening', resolve));
   const url = `http://127.0.0.1:${app.address().port}/api/v1/auth`;
@@ -83,7 +90,7 @@ async function fixture(options) {
       return { status: response.status, body: await response.json() };
     },
     async close() {
-      pool.query = originalQuery; pool.getConnection = originalConnection;
+      pool.query = originalQuery; pool.getConnection = originalConnection; config.mailDeliveryMode = originalMode;
       app.closeAllConnections(); await new Promise((resolve) => app.close(resolve));
       await smtp.close();
     },
@@ -164,4 +171,52 @@ test('production SMTP refuses unencrypted external mail transport', async () => 
     await assert.rejects(sendPasswordResetEmail('owner@example.com', 'https://frontend.example.com/login?reset=test'), /Plain SMTP/);
     assert.equal(f.smtp.messages.length, 0);
   } finally { process.env.NODE_ENV = 'test'; await f.close(); }
+});
+
+
+test('console mode registers the first Owner and logs a confirmation without SMTP', async () => {
+  const f = await fixture({ empty: true });
+  const { gstinCheckChar } = await import('../src/shared/gst.ts');
+  const originalLog = console.log, originalToken = config.setupRegistrationToken;
+  const logs = [];
+  console.log = (...args) => logs.push(args);
+  config.mailDeliveryMode = 'console'; config.smtpHost = undefined; config.smtpFrom = undefined;
+  config.setupRegistrationToken = 'b'.repeat(64);
+  try {
+    const response = await f.post('/register', { orgName: 'Test Traders', orgGstin: '36AAXFS1234K1Z' + gstinCheckChar('36AAXFS1234K1Z'), name: 'Test Owner', email: 'owner@example.com', password: 'test-password-123', setupCode: config.setupRegistrationToken });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.user.role, 'Owner');
+    assert.ok(response.body.token);
+    assert.deepEqual(await f.get('/setup-status'), { status: 200, body: { available: false } });
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], '[TEST EMAIL]');
+    const mail = JSON.parse(logs[0][1]);
+    assert.equal(mail.to, 'owner@example.com');
+    assert.match(mail.text, /master admin/);
+    assert.match(mail.text, /https:\/\/frontend\.example\.com\/login/);
+    assert.equal(JSON.stringify(logs).includes('test-password-123'), false);
+    assert.equal(JSON.stringify(logs).includes(config.setupRegistrationToken), false);
+    assert.equal(f.smtp.messages.length, 0);
+  } finally { console.log = originalLog; config.setupRegistrationToken = originalToken; await f.close(); }
+});
+
+test('console reset logs a usable single-use link and keeps unknown accounts private', async () => {
+  const f = await fixture();
+  const originalLog = console.log;
+  const logs = [];
+  console.log = (...args) => logs.push(args);
+  config.mailDeliveryMode = 'console'; config.smtpHost = undefined; config.smtpFrom = undefined;
+  try {
+    const unknown = await f.post('/forgot-password', { email: 'missing@example.com' });
+    assert.equal(logs.length, 0);
+    const known = await f.post('/forgot-password', { email: 'owner@example.com' });
+    assert.deepEqual(known, unknown);
+    assert.equal(logs.length, 1);
+    const mail = JSON.parse(logs[0][1]);
+    const token = mail.text.match(/reset=([a-f0-9]{64})/)[1];
+    assert.equal(mail.delivery, 'console');
+    assert.equal(f.smtp.messages.length, 0);
+    assert.equal((await f.post('/reset-password', { token, password: 'new-password-123' })).status, 200);
+    assert.equal((await f.post('/reset-password', { token, password: 'another-password' })).status, 400);
+  } finally { console.log = originalLog; await f.close(); }
 });

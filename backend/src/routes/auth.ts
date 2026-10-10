@@ -7,7 +7,7 @@ import { ApiError } from "../errors.js";
 import { h } from "../http.js";
 import { signToken } from "../auth.js";
 import { config, today } from "../config.js";
-import { sendPasswordResetEmail, smtpConfigured } from "../smtp.js";
+import { sendPasswordResetEmail, sendRegistrationEmail, smtpConfigured } from "../smtp.js";
 import type { LoginResponse } from "../shared/types.js";
 import { createFirstOwner, firstOwnerInput, ownerPhoneInput, verifySetupToken } from "../first-owner.js";
 
@@ -24,7 +24,12 @@ authRouter.post("/register", h(async (req) => {
   const { setupCode, ...input } = firstOwnerInput.extend({ mobile: ownerPhoneInput, setupCode: z.string().max(256) }).parse(req.body);
   verifySetupToken(setupCode, config.setupRegistrationToken);
   const userId = await createFirstOwner(input);
-  return loginResponse(userId);
+  const response = await loginResponse(userId);
+  if (smtpConfigured()) {
+    try { await sendRegistrationEmail(response.user.email, response.user.name); }
+    catch (error) { console.error("Registration confirmation email delivery failed", error); }
+  }
+  return response;
 }));
 
 async function loginResponse(userId: string): Promise<LoginResponse> {
