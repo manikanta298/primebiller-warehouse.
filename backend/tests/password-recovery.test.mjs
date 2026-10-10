@@ -183,7 +183,7 @@ test('console mode registers the first Owner and logs a confirmation without SMT
   config.mailDeliveryMode = 'console'; config.smtpHost = undefined; config.smtpFrom = undefined;
   config.setupRegistrationToken = 'b'.repeat(64);
   try {
-    const response = await f.post('/register', { orgName: 'Test Traders', orgGstin: '36AAXFS1234K1Z' + gstinCheckChar('36AAXFS1234K1Z'), name: 'Test Owner', email: 'owner@example.com', password: 'test-password-123', setupCode: config.setupRegistrationToken });
+    const response = await f.post('/register', { orgName: 'Test Traders', orgGstin: '36AAXFS1234K1Z' + gstinCheckChar('36AAXFS1234K1Z'), name: 'Test Owner', email: 'owner@example.com', password: 'test-password-123', mobile: '+91 9876543210', setupCode: config.setupRegistrationToken });
     assert.equal(response.status, 200);
     assert.equal(response.body.user.role, 'Owner');
     assert.ok(response.body.token);

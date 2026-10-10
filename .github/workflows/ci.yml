@@ -27,6 +27,8 @@ jobs:
         run: npm run test:conversion
       - name: First-admin registration form tests
         run: npm run test:first-admin
+      - name: Responsive navigation tests
+        run: npm run test:responsive
       - name: Compile Vercel frontend
         run: npm run build:vercel
         env:

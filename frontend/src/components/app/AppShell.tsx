@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, HelpCircle, LogOut, Search, Building2, Warehouse, Package, FileText, User } from "lucide-react";
+import { Bell, HelpCircle, LogOut, Search, Building2, Warehouse, Package, FileText, User, Menu } from "lucide-react";
 import { NAV } from "@/lib/nav";
 import { canAccess, setSession, updateSession, type Session } from "@/lib/session";
 import { api, usingMock } from "@/api/client";
@@ -11,10 +11,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 export function AppShell({ session, children }: { session: Session; children: ReactNode }) {
   const navigate = useNavigate();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => { if (desktop.matches) setMenuOpen(false); };
+    closeOnDesktop();
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -28,22 +40,32 @@ export function AppShell({ session, children }: { session: Session; children: Re
   }, [navigate, session.user.role]);
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+    <div className="flex min-h-dvh bg-background">
       <Sidebar session={session} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar session={session} onHelp={() => setHelpOpen(true)} />
-        <main className="flex-1 px-6 py-6 lg:px-8">{children}</main>
+        <main id="main-content" className="app-content min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">{children}</main>
       </div>
+      <SheetContent side="left" className="flex h-dvh w-[min(20rem,88vw)] max-w-none flex-col border-sidebar-border bg-sidebar p-0 text-sidebar-foreground sm:max-w-none [&>button]:right-3 [&>button]:top-3 [&>button]:size-11 [&>button]:text-sidebar-foreground">
+        <SheetTitle className="sr-only">Navigation</SheetTitle>
+        <SheetDescription className="sr-only">Choose a section of Girder.</SheetDescription>
+        <Sidebar session={session} mobile onNavigate={() => setMenuOpen(false)} />
+      </SheetContent>
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
+    </Sheet>
   );
 }
 
-function Sidebar({ session }: { session: Session }) {
+function Sidebar({ session, mobile = false, onNavigate }: { session: Session; mobile?: boolean; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto bg-sidebar text-sidebar-foreground md:flex">
-      <div className="flex items-center gap-2 px-5 py-5">
+    <aside aria-label={mobile ? "Mobile navigation" : "Desktop navigation"} className={cn(
+      "flex-col bg-sidebar text-sidebar-foreground",
+      mobile ? "flex min-h-0 flex-1" : "sticky top-0 hidden h-dvh w-60 shrink-0 lg:flex xl:w-64",
+    )}>
+      <div className="flex shrink-0 items-center gap-2 border-b border-sidebar-border px-5 py-5">
         <div className="flex size-8 items-center justify-center rounded-md bg-sidebar-primary font-mono text-sm font-bold text-sidebar-primary-foreground">
           G
         </div>
@@ -52,7 +74,7 @@ function Sidebar({ session }: { session: Session }) {
           <div className="text-[10px] uppercase tracking-widest opacity-60">Stock · GST</div>
         </div>
       </div>
-      <nav className="flex-1 space-y-5 px-3 pb-6">
+      <nav aria-label="Main navigation" className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-5 [padding-bottom:max(1.5rem,env(safe-area-inset-bottom))]">
         {NAV.map((sec) => {
           const items = sec.items.filter((i) => canAccess(session.user.role, i.to));
           if (!items.length) return null;
@@ -67,8 +89,10 @@ function Sidebar({ session }: { session: Session }) {
                     <li key={i.to}>
                       <Link
                         to={i.to}
+                        onClick={onNavigate}
+                        aria-current={active ? "page" : undefined}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          "flex min-h-11 touch-manipulation items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring lg:min-h-9",
                           active && "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-[inset_2px_0_0_var(--sidebar-primary)]",
                         )}
                       >
@@ -115,10 +139,15 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur lg:px-6">
+    <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur sm:flex-nowrap sm:px-4 lg:px-6">
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Open navigation menu" className="size-11 shrink-0 touch-manipulation lg:hidden">
+          <Menu />
+        </Button>
+      </SheetTrigger>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="max-w-56 justify-start">
+          <Button variant="ghost" size="sm" className="h-11 min-w-0 flex-1 justify-start px-2 sm:max-w-44 sm:flex-none">
             <Building2 />
             <span className="truncate">{org?.name}</span>
           </Button>
@@ -144,9 +173,9 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" aria-label={`Choose warehouse: ${godownName}`} className="order-last h-11 w-full min-w-0 justify-start sm:order-none sm:w-auto sm:max-w-44">
             <Warehouse />
-            {godownName}
+            <span className="truncate">{godownName}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
@@ -163,10 +192,10 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
 
       <GlobalSearch />
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+            <Button variant="ghost" size="icon" aria-label="Notifications" className="relative size-11">
               <Bell />
               {unread > 0 && (
                 <span className="num absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-ember text-[9px] text-ember-foreground">
@@ -175,7 +204,7 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
+          <DropdownMenuContent align="end" className="max-h-[70dvh] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto">
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             {openAlerts > 0 && (
               <DropdownMenuItem onClick={() => navigate({ to: "/alerts" })} className="font-medium">
@@ -190,22 +219,23 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button variant="ghost" size="icon" aria-label="Help" onClick={onHelp}>
+        <Button variant="ghost" size="icon" aria-label="Help" className="hidden size-11 sm:inline-flex" onClick={onHelp}>
           <HelpCircle />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" aria-label="Account menu" className="h-11 px-3">
               <User />
-              <span className="hidden sm:inline">{session.user.name}</span>
+              <span className="hidden max-w-32 truncate xl:inline">{session.user.name}</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="max-w-[calc(100vw-2rem)]">
+            <DropdownMenuLabel className="break-all">
               <div>{session.user.email}</div>
               <div className="text-xs font-normal text-muted-foreground">{session.user.role}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onHelp} className="sm:hidden"><HelpCircle /> Help</DropdownMenuItem>
             <DropdownMenuItem onClick={signOut}>
               <LogOut /> Sign out
             </DropdownMenuItem>
@@ -240,7 +270,9 @@ function GlobalSearch() {
   const soHits = orders.filter((o) => `${o.number ?? "draft"} ${o.customerName}`.toLowerCase().includes(ql)).slice(0, 5);
 
   return (
-    <div className="relative ml-2 hidden w-full max-w-sm lg:block">
+    <div className="relative ml-2 hidden min-w-0 flex-1 xl:block" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    }}>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <input
         ref={ref}
@@ -250,8 +282,8 @@ function GlobalSearch() {
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => e.key === "Escape" && ref.current?.blur()}
+        aria-label="Search items, orders, customers"
         placeholder="Search items, orders, customers"
         className="h-9 w-full rounded-md border bg-card pl-8 pr-10 text-sm outline-none focus:ring-1 focus:ring-ring"
       />
@@ -262,7 +294,8 @@ function GlobalSearch() {
           {items.slice(0, 5).map((i) => (
             <button
               key={i.id}
-              onMouseDown={() => navigate({ to: "/items/$id", params: { id: i.id } })}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => navigate({ to: "/items/$id", params: { id: i.id } })}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
             >
               <Package className="size-4 text-muted-foreground" />
@@ -273,7 +306,8 @@ function GlobalSearch() {
           {soHits.map((o) => (
             <button
               key={o.id}
-              onMouseDown={() => navigate({ to: "/sales-orders/$id", params: { id: o.id } })}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => navigate({ to: "/sales-orders/$id", params: { id: o.id } })}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
             >
               <FileText className="size-4 text-muted-foreground" />

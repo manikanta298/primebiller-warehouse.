@@ -264,22 +264,22 @@ function GodownDialog({ orgId, initial, onClose }: { orgId: string; initial: God
     <Dialog open onOpenChange={(open) => { if (!open) requestClose(); }}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader><DialogTitle>{initial.id ? `Edit ${initial.name}` : "New warehouse"}</DialogTitle></DialogHeader>
-        <form id="gd-form" className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); if (issues.length === 0 && !m.isPending) m.mutate(); }}>
+        <form id="gd-form" className="grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); if (issues.length === 0 && !m.isPending) m.mutate(); }}>
           <Field label="Code"><Input autoFocus required value={d.code} maxLength={20} onChange={(e) => set("code", e.target.value.toUpperCase())} className="num" /></Field>
           <Field label="Name"><Input required value={d.name} maxLength={120} onChange={(e) => set("name", e.target.value)} /></Field>
           <Field label="Type"><NativeSelect value={d.type} onChange={(e) => set("type", e.target.value as GodownType)}>{Object.entries(TYPES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</NativeSelect></Field>
           <Field label="Manager"><Input value={d.manager} maxLength={120} onChange={(e) => set("manager", e.target.value)} /></Field>
-          <Field label="Address" className="col-span-2"><Input value={d.address} maxLength={400} onChange={(e) => set("address", e.target.value)} /></Field>
+          <Field label="Address" className="sm:col-span-2"><Input value={d.address} maxLength={400} onChange={(e) => set("address", e.target.value)} /></Field>
           <Field label="State code"><Input required value={d.stateCode} maxLength={2} onChange={(e) => set("stateCode", e.target.value.replace(/\D/g, ""))} className="num" /></Field>
           <Field label="Separate GSTIN (optional)"><Input value={d.gstin ?? ""} maxLength={15} onChange={(e) => set("gstin", e.target.value.toUpperCase())} className="num" /></Field>
-          <div className="col-span-2 space-y-2 rounded-md bg-muted/50 p-3 text-sm">
+          <div className="sm:col-span-2 space-y-2 rounded-md bg-muted/50 p-3 text-sm">
             <label className="flex items-center justify-between">Allow negative stock <Switch checked={d.allowNegative} onCheckedChange={(v) => set("allowNegative", v)} /></label>
             <label className="flex items-center justify-between">Default for sales <Switch checked={d.defaultForSales} onCheckedChange={(v) => set("defaultForSales", v)} /></label>
             <label className="flex items-center justify-between">Active <Switch checked={d.active} onCheckedChange={(v) => set("active", v)} /></label>
             {initial.id && <p className="text-xs text-muted-foreground">A warehouse with stock or held reservations can't be deactivated. Use stock documents to clear balances.</p>}
           </div>
-          {issues.length > 0 && <div role="alert" className="col-span-2 space-y-1 text-xs text-destructive">{issues.map((issue) => <p key={issue}>{issue}</p>)}</div>}
-          {serverError && <p role="alert" className="col-span-2 text-xs text-destructive">{serverError}</p>}
+          {issues.length > 0 && <div role="alert" className="sm:col-span-2 space-y-1 text-xs text-destructive">{issues.map((issue) => <p key={issue}>{issue}</p>)}</div>}
+          {serverError && <p role="alert" className="sm:col-span-2 text-xs text-destructive">{serverError}</p>}
         </form>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={requestClose} disabled={m.isPending}>Cancel</Button>

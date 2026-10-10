@@ -6,13 +6,13 @@ import { ApiError } from "@/api/client";
 
 export function PageHeader({ title, eyebrow, actions, children }: { title: string; eyebrow?: string; actions?: ReactNode; children?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
+    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+      <div className="min-w-0">
         {eyebrow && <div className="eyebrow mb-1">{eyebrow}</div>}
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
         {children}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
     </div>
   );
 }
