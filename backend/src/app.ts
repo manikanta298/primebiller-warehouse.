@@ -42,6 +42,8 @@ export function createApp() {
   // Per-worker defence-in-depth against password guessing and email flooding.
   // The nginx gateway adds a separate shared-per-IP boundary for this deployment.
   v1.use("/auth/login", limitAuthRequests(15));
+  v1.use("/auth/register", limitAuthRequests(5));
+  v1.use("/auth/setup-status", limitAuthRequests(30));
   v1.use("/auth/forgot-password", limitAuthRequests(5));
   v1.use("/auth/reset-password", limitAuthRequests(10));
   v1.use("/auth/accept-invite", limitAuthRequests(10));

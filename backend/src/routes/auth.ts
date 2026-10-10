@@ -9,8 +9,23 @@ import { signToken } from "../auth.js";
 import { config, today } from "../config.js";
 import { sendPasswordResetEmail, smtpConfigured } from "../smtp.js";
 import type { LoginResponse } from "../shared/types.js";
+import { createFirstOwner, firstOwnerInput, verifySetupToken } from "../first-owner.js";
 
 export const authRouter = Router();
+
+authRouter.get("/setup-status", h(async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const enabled = Buffer.byteLength(config.setupRegistrationToken) >= 32;
+  const existing = enabled ? await one(pool, "SELECT id FROM orgs LIMIT 1") || await one(pool, "SELECT id FROM users LIMIT 1") : true;
+  return { available: enabled && !existing };
+}));
+
+authRouter.post("/register", h(async (req) => {
+  const { setupCode, ...input } = firstOwnerInput.extend({ setupCode: z.string().max(256) }).parse(req.body);
+  verifySetupToken(setupCode, config.setupRegistrationToken);
+  const userId = await createFirstOwner(input);
+  return loginResponse(userId);
+}));
 
 async function loginResponse(userId: string): Promise<LoginResponse> {
   const u = (await one(pool, "SELECT id, name, email, token_version FROM users WHERE id = ?", [userId]))!;

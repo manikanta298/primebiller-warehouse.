@@ -25,6 +25,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Unit and regression tests
         run: npm run test:conversion
+      - name: First-admin registration form tests
+        run: npm run test:first-admin
       - name: Compile Vercel frontend
         run: npm run build:vercel
         env:
@@ -47,6 +49,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Typecheck and compile
         run: npm run build
+      - name: Registration and password recovery tests
+        run: npm test
 
   deployment:
     name: Deployment scripts

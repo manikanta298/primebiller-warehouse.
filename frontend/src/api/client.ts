@@ -28,6 +28,16 @@ import type { ItemEditPatch } from "@/lib/item-detail-rules";
 
 export { ApiError };
 
+export interface FirstAdminRegistrationInput {
+  orgName: string;
+  orgGstin: string;
+  name: string;
+  email: string;
+  password: string;
+  mobile?: string;
+  setupCode: string;
+}
+
 const BASE_URL = (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "");
 export const usingMock = !BASE_URL;
 
@@ -66,6 +76,12 @@ async function fileToBase64(f: File): Promise<string> {
 }
 
 export const api = {
+  firstAdminStatus: (): Promise<{ available: boolean }> =>
+    usingMock ? Promise.resolve({ available: false }) : http("GET", "/auth/setup-status"),
+  registerFirstAdmin: (input: FirstAdminRegistrationInput): Promise<LoginResponse> =>
+    usingMock
+      ? Promise.reject(new ApiError(503, "demo_mode", "Registration requires the connected Express API."))
+      : http("POST", "/auth/register", input),
   /** Bulk import: read an Excel / JSON / CSV file or a Google Sheets link into rows (first row = headings). */
   parseImport: async (src: File | { url: string }): Promise<string[][]> =>
     usingMock

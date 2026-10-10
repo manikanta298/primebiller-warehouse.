@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:first-admin": "vitest run src/test/first-admin-registration.test.tsx",
     "test:dashboard": "node --experimental-strip-types --test tests/dashboard-rules.test.mjs",
     "test:items": "node --experimental-strip-types --test tests/item-list-rules.test.mjs",
     "test:item-detail": "node --experimental-strip-types --test tests/item-detail-rules.test.mjs",
@@ -33,7 +34,7 @@
     "test:reports": "node --experimental-strip-types --test tests/report-rules.test.mjs",
     "build:vercel": "node scripts/build-vercel.mjs",
     "typecheck:frontend": "tsc --noEmit -p tsconfig.json",
-    "ci:frontend": "npm run test:conversion && npm run build:vercel"
+    "ci:frontend": "npm run test:conversion && npm run test:first-admin && npm run build:vercel"
   },
   "overrides": {
     "rolldown": "1.2.1"

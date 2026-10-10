@@ -15,6 +15,7 @@ export const config = {
   jwtSecret: req("JWT_SECRET"),
   jwtExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "12h",
   settingsKey: process.env["SETTINGS_KEY"] ?? "",
+  setupRegistrationToken: process.env["SETUP_REGISTRATION_TOKEN"] ?? "",
   corsOrigins: (process.env["CORS_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   appUrl: process.env["APP_URL"] ?? "http://localhost:8080",
   smtpHost: process.env["SMTP_HOST"] || undefined,
