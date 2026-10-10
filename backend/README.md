@@ -25,8 +25,8 @@ For Aiven: set `DB_SSL=true` and download the CA certificate from the Aiven cons
 The database starts completely empty — there is no demo data. Before running `npm run setup:owner`, add these
 to `.env` (and remove the password afterwards):
 ```
-SETUP_ORG_NAME=Your Business Name
-SETUP_ORG_GSTIN=36XXXXX0000X1ZX      # must be a valid GSTIN; state is taken from it
+SETUP_ORG_NAME=                     # optional; defaults to Your Name's business
+SETUP_ORG_GSTIN=                    # optional; validate and derive state if provided
 SETUP_OWNER_NAME=Your Name
 SETUP_OWNER_EMAIL=you@example.com
 SETUP_OWNER_PASSWORD=at-least-10-characters
@@ -42,8 +42,8 @@ The master admin uses the existing `Owner` role, which has full access to its or
 1. Generate a separate private setup code with `openssl rand -hex 32`.
 2. Set `SETUP_REGISTRATION_TOKEN` to that code in the backend's Render environment. Never set it as a frontend `VITE_*` variable.
 3. Deploy the backend and frontend with the correct `VITE_API_URL`, `APP_URL` and `CORS_ORIGINS`.
-4. Open the frontend sign-in page and select **Register first master admin**. Enter your business name, valid GSTIN, name, email, password (10+ characters), and the private setup code.
-5. Registration creates the organisation, Owner, document series, settings and print profiles in one transaction, then signs you in. Remove `SETUP_REGISTRATION_TOKEN` after setup.
+4. Open the frontend sign-in page and select **Register first master admin**. Enter your name, email, phone number, password (10+ characters), confirmation, and the private setup code. Business name and GSTIN are not required.
+5. Registration creates the organisation, Owner, document series, settings and print profiles in one transaction, then signs you in. A default business name is created from your name; GSTIN, PAN and state remain blank. Complete your actual business and tax details in Settings before GST billing. Remove `SETUP_REGISTRATION_TOKEN` after setup.
 
 `GET /api/v1/auth/setup-status` only enables the form when a private code is configured and the database is empty. `POST /api/v1/auth/register` verifies the code and never accepts a caller-supplied role. The web and CLI setup share a MySQL advisory lock so only one first account can be created, even during simultaneous requests. Existing installations keep their current users and roles; later users are invited by the Owner.
 

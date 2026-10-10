@@ -9,7 +9,7 @@ import { signToken } from "../auth.js";
 import { config, today } from "../config.js";
 import { sendPasswordResetEmail, smtpConfigured } from "../smtp.js";
 import type { LoginResponse } from "../shared/types.js";
-import { createFirstOwner, firstOwnerInput, verifySetupToken } from "../first-owner.js";
+import { createFirstOwner, firstOwnerInput, ownerPhoneInput, verifySetupToken } from "../first-owner.js";
 
 export const authRouter = Router();
 
@@ -21,7 +21,7 @@ authRouter.get("/setup-status", h(async (_req, res) => {
 }));
 
 authRouter.post("/register", h(async (req) => {
-  const { setupCode, ...input } = firstOwnerInput.extend({ setupCode: z.string().max(256) }).parse(req.body);
+  const { setupCode, ...input } = firstOwnerInput.extend({ mobile: ownerPhoneInput, setupCode: z.string().max(256) }).parse(req.body);
   verifySetupToken(setupCode, config.setupRegistrationToken);
   const userId = await createFirstOwner(input);
   return loginResponse(userId);

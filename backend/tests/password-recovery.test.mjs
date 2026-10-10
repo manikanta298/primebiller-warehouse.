@@ -95,7 +95,7 @@ test('registration API hides setup after initialization and rejects unauthorized
   const { gstinCheckChar } = await import('../src/shared/gst.ts');
   const oldToken = config.setupRegistrationToken;
   config.setupRegistrationToken = 'a'.repeat(64);
-  const input = { orgName: 'Test Traders', orgGstin: '36AAXFS1234K1Z' + gstinCheckChar('36AAXFS1234K1Z'), name: 'Test Owner', email: 'owner@example.com', password: 'test-password-123', setupCode: 'a'.repeat(64) };
+  const input = { orgName: 'Test Traders', orgGstin: '36AAXFS1234K1Z' + gstinCheckChar('36AAXFS1234K1Z'), name: 'Test Owner', email: 'owner@example.com', password: 'test-password-123', mobile: '+91 9876543210', setupCode: 'a'.repeat(64) };
   try {
     assert.deepEqual(await f.get('/setup-status'), { status: 200, body: { available: false } });
     assert.equal((await f.post('/register', { ...input, setupCode: 'wrong' })).status, 403);

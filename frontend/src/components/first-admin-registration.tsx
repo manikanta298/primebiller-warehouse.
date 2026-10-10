@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function FirstAdminRegistration({ onSuccess, onCancel }: { onSuccess: (auth: LoginResponse) => void; onCancel: () => void }) {
-  const [input, setInput] = useState<FirstAdminRegistrationInput>({ orgName: "", orgGstin: "", name: "", email: "", password: "", mobile: "", setupCode: "" });
+  const [input, setInput] = useState<FirstAdminRegistrationInput>({ name: "", email: "", password: "", mobile: "", setupCode: "" });
   const [confirmPassword, setConfirmPassword] = useState("");
   const register = useMutation({
     mutationFn: () => api.registerFirstAdmin(input),
@@ -21,15 +21,7 @@ export function FirstAdminRegistration({ onSuccess, onCancel }: { onSuccess: (au
     <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (input.password === confirmPassword) register.mutate(); }}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Register master admin</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Create your organisation and its first administrator with full Owner access. Registration closes after setup.</p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="register-org">Business name</Label>
-        <Input id="register-org" value={input.orgName} onChange={(event) => update("orgName", event.target.value)} minLength={2} maxLength={200} autoComplete="organization" required />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="register-gstin">Business GSTIN</Label>
-        <Input id="register-gstin" value={input.orgGstin} onChange={(event) => update("orgGstin", event.target.value.toUpperCase())} minLength={15} maxLength={15} required />
+        <p className="mt-1 text-sm text-muted-foreground">Create your first administrator with full Owner access. Add business details later in Settings. Registration closes after setup.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="register-name">Your name</Label>
@@ -40,8 +32,8 @@ export function FirstAdminRegistration({ onSuccess, onCancel }: { onSuccess: (au
         <Input id="register-email" type="email" value={input.email} onChange={(event) => update("email", event.target.value)} maxLength={190} autoComplete="email" required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="register-mobile">Mobile (optional)</Label>
-        <Input id="register-mobile" type="tel" value={input.mobile} onChange={(event) => update("mobile", event.target.value)} maxLength={20} autoComplete="tel" />
+        <Label htmlFor="register-mobile">Phone number</Label>
+        <Input id="register-mobile" type="tel" value={input.mobile} onChange={(event) => update("mobile", event.target.value)} minLength={7} maxLength={20} autoComplete="tel" required />
       </div>
       <div className="space-y-2">
         <Label htmlFor="register-password">Password</Label>

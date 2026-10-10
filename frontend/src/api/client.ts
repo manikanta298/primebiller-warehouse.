@@ -29,12 +29,12 @@ import type { ItemEditPatch } from "@/lib/item-detail-rules";
 export { ApiError };
 
 export interface FirstAdminRegistrationInput {
-  orgName: string;
-  orgGstin: string;
+  orgName?: string;
+  orgGstin?: string;
   name: string;
   email: string;
   password: string;
-  mobile?: string;
+  mobile: string;
   setupCode: string;
 }
 

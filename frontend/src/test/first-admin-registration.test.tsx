@@ -18,7 +18,7 @@ function form() {
 
 function fill() {
   for (const [label, value] of [
-    ["Business name", "Test Traders"], ["Business GSTIN", "36AAXFS1234K1ZP"], ["Your name", "Test Owner"],
+    ["Your name", "Test Owner"], ["Phone number", "+91 9876543210"],
     ["Email", "owner@example.com"], ["Password", "secure-password-123"], ["Confirm password", "secure-password-123"],
     ["Private setup code", "a".repeat(64)],
   ]) fireEvent.change(screen.getByLabelText(label!), { target: { value } });
@@ -31,13 +31,16 @@ describe("First master-admin registration", () => {
     const auth = { token: "test-token", user: { id: "u1", name: "Test Owner", email: "owner@example.com", role: "Owner" as const }, orgs: [] };
     vi.mocked(api.registerFirstAdmin).mockResolvedValue(auth);
     const { onSuccess } = form();
+    expect(screen.queryByLabelText("Business GSTIN")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Business name")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Phone number")).toBeRequired();
     fill();
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "different-password" } });
     expect(screen.getByRole("button", { name: "Create master admin" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "secure-password-123" } });
     fireEvent.click(screen.getByRole("button", { name: "Create master admin" }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(auth));
-    expect(api.registerFirstAdmin).toHaveBeenCalledWith({ orgName: "Test Traders", orgGstin: "36AAXFS1234K1ZP", name: "Test Owner", email: "owner@example.com", password: "secure-password-123", mobile: "", setupCode: "a".repeat(64) });
+    expect(api.registerFirstAdmin).toHaveBeenCalledWith({ name: "Test Owner", email: "owner@example.com", password: "secure-password-123", mobile: "+91 9876543210", setupCode: "a".repeat(64) });
   });
 
   it("shows API errors without logging in and supports returning to sign in", async () => {
