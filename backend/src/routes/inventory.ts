@@ -114,12 +114,13 @@ inventoryRouter.post("/grns", h((req) => write(req, async (u) => {
   const earlier = await u.docs_("grns");
   const problems = grnDraftProblems(input, sup, g, catalog, po, today(), earlier);
   if (problems.length) throw new ApiError(422, "invalid_grn", problems[0]!);
+  if (!sup || !g) throw new ApiError(422, "invalid_grn", "Supplier and warehouse must exist in this organisation");
   // The unique primary key is the final authority under concurrent requests;
   // insertion and document/stock posting share one transaction.
   const grnId = newId("grn");
   try {
     await exec(u.conn, "INSERT INTO grn_invoice_registry (org_id, supplier_id, invoice_key, grn_id) VALUES (?,?,?,?)",
-      [u.ctx.orgId, sup!.id, invoiceKey(input.supplierInvoiceNo), grnId]);
+      [u.ctx.orgId, sup.id, invoiceKey(input.supplierInvoiceNo), grnId]);
   } catch (error) {
     if ((error as { code?: string }).code === "ER_DUP_ENTRY")
       throw new ApiError(409, "duplicate_invoice", "This supplier invoice has already been received");
@@ -288,7 +289,8 @@ async function adjChecks(u: Uow, godownId: string, lines: { itemId: string; batc
   return lines.map((l) => {
     const it = items.get(l.itemId)!;
     const stock = it.stock.find((x) => x.godownId === godownId);
-    const batch = l.batchNo ? it.batches.find((x) => x.batchNo === l.batchNo.trim() && x.godownId === godownId) : undefined;
+    const batchNo = l.batchNo?.trim();
+    const batch = batchNo ? it.batches.find((x) => x.batchNo === batchNo && x.godownId === godownId) : undefined;
     return { itemId: it.id, itemName: it.name, active: it.active, direction: l.direction, qty: l.qty,
       onHand: stock?.onHand ?? 0, held: stock?.held ?? 0, unitCost: l.direction === "up" ? l.unitCost : it.costPrice,
       trackBatches: it.trackBatches, batchNo: l.batchNo, batchQty: batch?.qty };
