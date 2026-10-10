@@ -153,3 +153,28 @@ password-reset links. Account passwords and SMTP credentials are never included
 in these email logs. A registration confirmation delivery failure does not undo
 the created account. To send real emails later, set `MAIL_DELIVERY_MODE=smtp`
 (the default), configure the provider's `SMTP_*` variables above, and redeploy.
+
+
+### Warehouse GSTIN: no separate registration
+
+The warehouse master (`godowns`) accepts `NA` when no separate GSTIN exists.
+Input is trimmed and uppercased, so `na` and ` Na ` are saved as `NA`. Leaving
+this optional field blank continues to save SQL `NULL`. Actual GSTIN values still
+require a valid checksum and a prefix matching the warehouse state code. A valid
+warehouse state is required even with `NA`. This exception does not change the
+organisation or customer/supplier GSTIN rules.
+
+Deployment steps:
+
+1. Merge this change and deploy both the frontend and backend.
+2. Confirm the existing database column with `SHOW COLUMNS FROM godowns LIKE 'gstin';`
+   or `SHOW CREATE TABLE godowns;`. The repository schema is `gstin CHAR(15) NULL`,
+   which already accepts `NA`; no ALTER TABLE or backfill is needed.
+3. Create or edit a warehouse, select its real state code, and enter `NA` in
+   Separate GSTIN. Save it and reopen it to confirm the value.
+4. Verify using `SELECT id, code, name, gstin, state_code FROM godowns WHERE org_id = 'YOUR_ORG_ID';`.
+
+Existing GSTIN values and NULLs are not rewritten. Do not run an UPDATE to turn
+all missing or invalid values into NA. Shared validation is generated with
+`node scripts/sync-shared.mjs` from `frontend/src/lib/godown-rules.ts` and committed
+under `backend/src/shared/` so standalone backend deployments use the same rule.

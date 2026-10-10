@@ -271,7 +271,7 @@ function GodownDialog({ orgId, initial, onClose }: { orgId: string; initial: God
           <Field label="Manager"><Input value={d.manager} maxLength={120} onChange={(e) => set("manager", e.target.value)} /></Field>
           <Field label="Address" className="sm:col-span-2"><Input value={d.address} maxLength={400} onChange={(e) => set("address", e.target.value)} /></Field>
           <Field label="State code"><Input required value={d.stateCode} maxLength={2} onChange={(e) => set("stateCode", e.target.value.replace(/\D/g, ""))} className="num" /></Field>
-          <Field label="Separate GSTIN (optional)"><Input value={d.gstin ?? ""} maxLength={15} onChange={(e) => set("gstin", e.target.value.toUpperCase())} className="num" /></Field>
+          <Field label="Separate GSTIN (optional)" hint="Enter NA if no separate GSTIN exists, or leave blank."><Input aria-label="Separate GSTIN (optional)" placeholder="GSTIN or NA" value={d.gstin ?? ""} maxLength={15} onChange={(e) => set("gstin", e.target.value.toUpperCase())} className="num" /></Field>
           <div className="sm:col-span-2 space-y-2 rounded-md bg-muted/50 p-3 text-sm">
             <label className="flex items-center justify-between">Allow negative stock <Switch checked={d.allowNegative} onCheckedChange={(v) => set("allowNegative", v)} /></label>
             <label className="flex items-center justify-between">Default for sales <Switch checked={d.defaultForSales} onCheckedChange={(v) => set("defaultForSales", v)} /></label>
