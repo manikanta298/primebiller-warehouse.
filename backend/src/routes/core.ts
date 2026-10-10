@@ -265,7 +265,7 @@ async function saveParty(req: Parameters<Parameters<typeof h>[0]>[0]): Promise<P
     }
     const values = [input.kind, input.name, input.tradeName ?? null, input.gstin ?? null, input.pan ?? null, input.email ?? null,
       input.phone, input.address ?? null, input.city, input.pin ?? null, input.stateCode, stateName(input.stateCode),
-      input.creditLimit, input.creditDays, +input.blocked];
+      input.creditLimit, input.creditDays, Number(Boolean(input.blocked))];
     const id = routeId ?? newId("p");
     if (routeId) {
       await exec(conn, `UPDATE parties SET kind=?, name=?, trade_name=?, gstin=?, pan=?, email=?, phone=?, address=?,
