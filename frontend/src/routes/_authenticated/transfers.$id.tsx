@@ -30,6 +30,7 @@ function TransferDetail() {
   const role = session?.user.role;
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["transfer", session?.orgId, id], queryFn: () => api.getTransfer(id) });
+  const gq = useQuery({ queryKey: ["godowns", session?.orgId], queryFn: () => api.listGodowns(session?.orgId ?? "") });
   const [recv, setRecv] = useState<{ received: string; reason: string }[]>([]);
   useEffect(() => { if (q.data) setRecv(q.data.lines.map((l) => ({ received: String(l.qty), reason: "" }))); }, [q.data]);
   const done = (msg: string) => () => { qc.invalidateQueries(); toast.success(msg); };
@@ -48,7 +49,7 @@ function TransferDetail() {
   const totalSent = t.lines.reduce((sum, l) => sum + l.qty, 0);
   const totalReceived = t.lines.reduce((sum, l) => sum + (l.receivedQty ?? 0), 0);
   const open = t.status === "in_transit";
-  const canReceive = open && can(role, "transfer");
+  const canReceive = open && can(role, "transfer") && (role === "Owner" || role === "Manager" || !!gq.data?.some((g) => g.id === t.toId));
   const problems = canReceive ? receiveProblems(t.lines.map((l, n) => ({ itemName: l.itemName, sent: l.qty,
     received: recv[n]?.received?.trim() ? Number(recv[n].received) : Number.NaN, reason: recv[n]?.reason })), t.lines.length) : [];
   const setR = (n: number, p: Partial<{ received: string; reason: string }>) => setRecv((r) => r.map((x, i) => (i === n ? { ...x, ...p } : x)));

@@ -33,6 +33,7 @@ function NewTransfer() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const gq = useQuery({ queryKey: ["godowns", session?.orgId], queryFn: () => api.listGodowns(session?.orgId ?? "") });
+  const dq = useQuery({ queryKey: ["transfer-destinations", session?.orgId], queryFn: () => api.listTransferDestinations(session?.orgId ?? "") });
   const iq = useQuery({ queryKey: ["items", session?.orgId], queryFn: () => api.listItems() });
   const [fromId, setFromId] = useState(session?.godownId && session.godownId !== "all" ? session.godownId : "");
   const [toId, setToId] = useState("");
@@ -41,6 +42,7 @@ function NewTransfer() {
   const [reason, setReason] = useState("");
   const [rows, setRows] = useState<Row[]>([{ itemId: "", batchNo: "", qty: "" }]);
   const godowns = (gq.data ?? []).filter((g) => g.active !== false);
+  const destinations = dq.data ?? [];
   useEffect(() => {
     if (gq.data && !godowns.some((g) => g.id === fromId)) {
       setFromId(godowns[0]?.id ?? "");
@@ -53,7 +55,7 @@ function NewTransfer() {
   const free = (id: string) => { const st = item(id)?.stock.find((s) => s.godownId === fromId); return st ? st.onHand - st.held : 0; };
   const active = rows.filter((r) => r.itemId);
   const problems = transferDraftProblems({ fromId, toId, date, vehicleNo: vehicle, reason },
-    godowns.find((g) => g.id === fromId), godowns.find((g) => g.id === toId), businessToday(),
+    godowns.find((g) => g.id === fromId), destinations.find((g) => g.id === toId), businessToday(),
     active.map((r) => {
       const it = item(r.itemId);
       const b = it?.batches.find((x) => x.batchNo === r.batchNo && x.godownId === fromId);
@@ -69,7 +71,7 @@ function NewTransfer() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (gq.error || iq.error) return <ErrorState error={gq.error ?? iq.error} onRetry={() => { gq.refetch(); iq.refetch(); }} />;
+  if (gq.error || dq.error || iq.error) return <ErrorState error={gq.error ?? dq.error ?? iq.error} onRetry={() => { gq.refetch(); dq.refetch(); iq.refetch(); }} />;
   return (
     <div className="max-w-4xl">
       <PageHeader title="New stock transfer" eyebrow="Inventory" />
@@ -84,7 +86,7 @@ function NewTransfer() {
         <Field label="To godown">
           <NativeSelect aria-label="To godown" value={toId} onChange={(e) => setToId(e.target.value)}>
             <option value="">Choose…</option>
-            {godowns.filter((g) => g.id !== fromId).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            {destinations.filter((g) => g.id !== fromId).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
           </NativeSelect>
         </Field>
         <Field label="Date"><Input type="date" max={businessToday()} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
@@ -126,7 +128,7 @@ function NewTransfer() {
       <div className="mt-4 flex flex-wrap items-start justify-end gap-6 text-sm">
         <div className="space-y-1">{problems.slice(0, 3).map((p) => <p key={p} className="text-xs text-destructive">{p}</p>)}</div>
         <span>Value at cost <span className="num font-medium">{formatINR(value, 0)}</span></span>
-        <Button disabled={gq.isLoading || iq.isLoading || problems.length > 0 || go.isPending || !can(session?.user.role, "transfer")} onClick={() => go.mutate()}>{go.isPending ? "Dispatching…" : "Dispatch transfer"}</Button>
+        <Button disabled={gq.isLoading || dq.isLoading || iq.isLoading || problems.length > 0 || go.isPending || !can(session?.user.role, "transfer")} onClick={() => go.mutate()}>{go.isPending ? "Dispatching…" : "Dispatch transfer"}</Button>
       </div>
       <p className="mt-2 text-right text-xs text-muted-foreground">This screen records internal stock movements only; it does not generate statutory transport documents.</p>
     </div>

@@ -106,6 +106,11 @@ export const api = {
   listGodowns: (orgId: string): Promise<Godown[]> =>
     usingMock ? mock.listGodowns(orgId) : http("GET", `/orgs/${orgId}/godowns`),
 
+  listTransferDestinations: (orgId: string): Promise<Pick<Godown, "id" | "code" | "name" | "active">[]> =>
+    usingMock
+      ? mock.listGodowns(orgId).then((gs) => gs.filter((g) => g.active !== false).map(({ id, code, name, active }) => ({ id, code, name, active: active !== false })))
+      : http("GET", `/orgs/${orgId}/godowns?purpose=transfer`),
+
   listNotifications: (): Promise<Notification[]> =>
     usingMock ? mock.listNotifications() : http("GET", "/notifications"),
 
