@@ -105,7 +105,7 @@ function ImportPage() {
         if (entity === "items") {
           await api.createItem({
             sku: r["sku"]!.toUpperCase(), name: r["name"]!, category: r["category"] || "Uncategorised", brand: r["brand"] || "",
-            hsn: r["hsn"]!, gstRate: n(r["gstRate"]?.replace("%", "")), baseUom: r["baseUom"]!.toUpperCase(), conversions: [],
+            hsn: r["hsn"]!, gstRate: n(r["gstRate"]?.replace("%", "")), baseUom: r["baseUom"]!.toUpperCase(), conversions: [{ uom: r["baseUom"]!.toUpperCase(), factor: 1 }],
             salePrice: n(r["salePrice"]), costPrice: n(r["costPrice"]), allowNegative: false, trackBatches: false, active: true,
           });
         } else if (entity === "parties") {

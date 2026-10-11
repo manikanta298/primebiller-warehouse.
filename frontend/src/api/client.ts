@@ -160,6 +160,7 @@ export const api = {
   saveQuotation: (input: QuotationInput): Promise<Quotation> => usingMock ? mock.saveQuotation(input) : http(input.id ? "PUT" : "POST", input.id ? `/quotations/${input.id}` : "/quotations", input),
   quotationAction: (id: string, action: "issue" | "accept" | "cancel"): Promise<Quotation> => usingMock ? mock.quotationAction(id, action) : http("POST", `/quotations/${id}/${action}`, {}),
   convertQuotation: (id: string): Promise<SalesOrder> => usingMock ? mock.convertQuotation(id) : http("POST", `/quotations/${id}/convert`, {}),
+  deleteRecord: (kind: "items" | "parties" | "warehouses", id: string, orgId: string): Promise<{ deleted: boolean; id: string }> => usingMock ? mock.deleteRecord(kind,id,orgId) : http("DELETE", kind === "warehouses" ? `/orgs/${orgId}/godowns/${id}` : `/${kind}/${id}`),
   listSalesOrders: (status?: string): Promise<SalesOrder[]> =>
     usingMock ? mock.listSalesOrders(status) : http("GET", `/sales-orders${qs({ status })}`),
   getSalesOrder: (id: string): Promise<SalesOrder> =>

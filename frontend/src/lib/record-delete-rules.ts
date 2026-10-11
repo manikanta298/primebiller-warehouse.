@@ -1,0 +1,7 @@
+export type DeletableRecord = "items" | "parties" | "warehouses";
+/** Includes cancelled/draft history: deleting its master would break traceability. */
+export function recordReferenced(kind: DeletableRecord, id: string, doc: { customerId?: string; supplierId?: string; godownId?: string; fromId?: string; toId?: string; lines?: { itemId?: string }[] }): boolean {
+  if (kind === "parties") return doc.customerId === id || doc.supplierId === id;
+  if (kind === "warehouses") return [doc.godownId, doc.fromId, doc.toId].includes(id);
+  return !!doc.lines?.some(line => line.itemId === id);
+}

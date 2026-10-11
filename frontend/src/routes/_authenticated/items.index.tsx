@@ -1,3 +1,4 @@
+import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -143,6 +144,7 @@ function ItemsPage() {
                   <th scope="col" className="text-right font-semibold">Held</th>
                   <th scope="col" className="text-right font-semibold">Free</th>
                   <th scope="col" className="px-4 text-right font-semibold">Sale price</th>
+                  {canImport && <th scope="col" className="px-4 font-semibold">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -166,6 +168,7 @@ function ItemsPage() {
                       <td className="num text-right text-muted-foreground">{formatQty(s.held)}</td>
                       <td className={cn("num text-right font-medium", s.free <= 0 && "text-destructive")}>{formatQty(s.free)}</td>
                       <td className="num px-4 text-right">{formatINR(i.salePrice)}</td>
+                      {canImport && <td className="p-2"><div className="flex gap-2"><Button variant="outline" size="sm" className="min-h-11" asChild><Link to="/items/$id" params={{id:i.id}}>Edit</Link></Button><DeleteRecordButton kind="items" id={i.id} name={i.name} orgId={orgId!} /></div></td>}
                     </tr>
                   );
                 })}

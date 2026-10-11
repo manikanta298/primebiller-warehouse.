@@ -56,6 +56,7 @@ function MastersPage() {
           </Button>
         }
       />
+      <p className="mb-4 rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">Set up units, HSN rates, categories and brands before importing items. Select Active for new records. Updating an HSN master does not automatically update existing item GST rates; review each affected item. Add a new dated HSN rate for tax changes.</p>
       <Tabs value={tab} onValueChange={(v) => { setTab(v as MasterKind); setQuery(""); setStatus("all"); }}>
         <TabsList>
           <TabsTrigger value="uoms">Units</TabsTrigger>

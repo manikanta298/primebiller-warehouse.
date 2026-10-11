@@ -14,6 +14,7 @@ const out = join(root, "backend/src/shared");
 mkdirSync(out, { recursive: true });
 const files = {
   "quotation-rules.ts": "frontend/src/lib/quotation-rules.ts",
+  "record-delete-rules.ts": "frontend/src/lib/record-delete-rules.ts",
   "types.ts": "frontend/src/api/types.ts",
   "gst.ts": "frontend/src/lib/gst.ts",
   "stock.ts": "frontend/src/lib/stock.ts",
