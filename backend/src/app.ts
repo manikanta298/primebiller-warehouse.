@@ -7,6 +7,7 @@ import { requireAuth } from "./auth.js";
 import { errorHandler } from "./errors.js";
 import { authRouter } from "./routes/auth.js";
 import { coreRouter } from "./routes/core.js";
+import { quotationRouter } from "./routes/quotations.js";
 import { salesRouter } from "./routes/sales.js";
 import { inventoryRouter } from "./routes/inventory.js";
 import { adminRouter } from "./routes/admin.js";
@@ -52,6 +53,7 @@ export function createApp() {
   v1.use(requireAuth); // everything below needs a valid token
   v1.use(enforceReadAccess);
   v1.use(coreRouter);
+  v1.use(quotationRouter);
   v1.use(salesRouter);
   v1.use(inventoryRouter);
   v1.use(adminRouter);

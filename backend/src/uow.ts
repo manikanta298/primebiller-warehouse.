@@ -11,16 +11,16 @@ import type { Ctx } from "./auth.js";
 import { ApiError } from "./errors.js";
 import { docNumber, fyLabel } from "./shared/numbering.js";
 import type {
-  Adjustment, Advance, Batch, Challan, DocType, Godown, Grn, Invoice, Item, LedgerEntry, Party, PurchaseOrder, Receipt, SalesOrder, Transfer,
+  Quotation, Adjustment, Advance, Batch, Challan, DocType, Godown, Grn, Invoice, Item, LedgerEntry, Party, PurchaseOrder, Receipt, SalesOrder, Transfer,
 } from "./shared/types.js";
 
 export const DOC_TABLES = {
-  salesOrders: "sales_orders", challans: "challans", invoices: "invoices", receipts: "receipts", advances: "advances",
+  quotations: "quotations", salesOrders: "sales_orders", challans: "challans", invoices: "invoices", receipts: "receipts", advances: "advances",
   pos: "purchase_orders", grns: "grns", transfers: "transfers", adjustments: "adjustments",
 } as const;
 export type DocKey = keyof typeof DOC_TABLES;
 export interface DocMap {
-  salesOrders: SalesOrder; challans: Challan; invoices: Invoice; receipts: Receipt; advances: Advance;
+  quotations: Quotation; salesOrders: SalesOrder; challans: Challan; invoices: Invoice; receipts: Receipt; advances: Advance;
   pos: PurchaseOrder; grns: Grn; transfers: Transfer; adjustments: Adjustment;
 }
 
@@ -186,6 +186,15 @@ export class Uow {
     const seq = Number(c!["last_number"]) + 1;
     await exec(this.conn, "UPDATE doc_counters SET last_number = ? WHERE org_id = ? AND doc_type = ? AND fy = ?", [seq, this.ctx.orgId, docType, key]);
     return { seq, number: docNumber(s["prefix"], fy, seq, Number(s["padding"])) };
+  }
+
+  async nextQuotation(date: string): Promise<string> {
+    const fy = fyLabel(date);
+    await exec(this.conn, "INSERT IGNORE INTO quotation_counters (org_id, fy, last_number) VALUES (?,?,0)", [this.ctx.orgId, fy]);
+    const c = await one(this.conn, "SELECT last_number FROM quotation_counters WHERE org_id = ? AND fy = ? FOR UPDATE", [this.ctx.orgId, fy]);
+    const seq = Number(c!["last_number"]) + 1;
+    await exec(this.conn, "UPDATE quotation_counters SET last_number = ? WHERE org_id = ? AND fy = ?", [seq, this.ctx.orgId, fy]);
+    return docNumber("QT", fy, seq, 5);
   }
 
   async flush() {

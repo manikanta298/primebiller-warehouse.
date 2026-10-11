@@ -5,7 +5,7 @@
  */
 import * as mock from "./mock";
 import { ApiError } from "./mock";
-import type { AppUser, AppUserInput, NumberSeries, NumberSeriesInput, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Adjustment, AdjustmentInput, Transfer, TransferInput, ReceiveTransferInput, PurchaseOrder, PurchaseOrderInput, Grn, GrnInput, Receipt, ReceiptInput, Invoice, Advance, IssueInvoiceInput, Challan, DispatchInput, EwbAction,
+import type { Quotation, QuotationInput, AppUser, AppUserInput, NumberSeries, NumberSeriesInput, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Adjustment, AdjustmentInput, Transfer, TransferInput, ReceiveTransferInput, PurchaseOrder, PurchaseOrderInput, Grn, GrnInput, Receipt, ReceiptInput, Invoice, Advance, IssueInvoiceInput, Challan, DispatchInput, EwbAction,
   Dashboard,
   Godown,
   WarehouseActivity,
@@ -155,6 +155,11 @@ export const api = {
         ? http("PUT", `/masters/${kind}/${row.id}`, row)
         : http("POST", `/masters/${kind}`, row),
 
+  listQuotations: (): Promise<Quotation[]> => usingMock ? mock.listQuotations() : http("GET", "/quotations"),
+  getQuotation: (id: string): Promise<Quotation> => usingMock ? mock.getQuotation(id) : http("GET", `/quotations/${id}`),
+  saveQuotation: (input: QuotationInput): Promise<Quotation> => usingMock ? mock.saveQuotation(input) : http(input.id ? "PUT" : "POST", input.id ? `/quotations/${input.id}` : "/quotations", input),
+  quotationAction: (id: string, action: "issue" | "accept" | "cancel"): Promise<Quotation> => usingMock ? mock.quotationAction(id, action) : http("POST", `/quotations/${id}/${action}`, {}),
+  convertQuotation: (id: string): Promise<SalesOrder> => usingMock ? mock.convertQuotation(id) : http("POST", `/quotations/${id}/convert`, {}),
   listSalesOrders: (status?: string): Promise<SalesOrder[]> =>
     usingMock ? mock.listSalesOrders(status) : http("GET", `/sales-orders${qs({ status })}`),
   getSalesOrder: (id: string): Promise<SalesOrder> =>
