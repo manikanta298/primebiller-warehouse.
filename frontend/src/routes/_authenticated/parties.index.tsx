@@ -1,3 +1,4 @@
+import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -80,6 +81,7 @@ function PartiesPage() {
                 <th className="text-right font-semibold">Credit limit</th>
                 <th className="text-right font-semibold">Outstanding</th>
                 <th className="px-4 text-right font-semibold">Headroom</th>
+                {mayEdit && <th className="px-4 font-semibold">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -99,6 +101,7 @@ function PartiesPage() {
                     <td className="num text-right">{p.creditLimit ? formatINR(p.creditLimit, 0) : "–"}</td>
                     <td className="num text-right">{p.outstanding ? formatINR(p.outstanding, 0) : "–"}</td>
                     <td className={cn("num px-4 text-right font-medium", nearLimit && "text-ember")}>{p.creditLimit ? formatINR(headroom, 0) : "–"}</td>
+                    {mayEdit && <td className="p-2"><div className="flex gap-2"><Button variant="outline" size="sm" className="min-h-11" asChild><Link to="/parties/$id" params={{id:p.id}}>Edit</Link></Button><DeleteRecordButton kind="parties" id={p.id} name={p.name} orgId={orgId!} /></div></td>}
                   </tr>
                 );
               })}

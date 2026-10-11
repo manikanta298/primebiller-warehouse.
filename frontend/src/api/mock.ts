@@ -22,6 +22,7 @@ import type { Quotation, QuotationInput, Adjustment, AdjustmentInput, AppUser, A
   LedgerEntry, LedgerFilter, StockAlert,
   Challan, ChallanLine, DispatchInput, EwbAction, Invoice, Advance, IssueInvoiceInput, Receipt, ReceiptInput, PurchaseOrder, PurchaseOrderInput, Grn, GrnInput, GrnLine, Transfer, TransferInput, ReceiveTransferInput,
 } from "./types";
+import { recordReferenced, type DeletableRecord } from "@/lib/record-delete-rules";
 import { buildLedger, computeAlerts } from "@/lib/stock-rules";
 import { warehouseActivityFromLedger, warehouseActivityPeriod } from "@/lib/warehouse-dashboard-rules";
 import { dashboardInventory, dashboardPipeline } from "@/lib/dashboard-rules";
@@ -1911,4 +1912,28 @@ export async function parseImport(src: File | { url: string }): Promise<string[]
   } catch (e) {
     throw new ApiError(422, "unreadable_file", e instanceof Error ? e.message : "File could not be read");
   }
+}
+
+/** Never delete documents, balances or used master records in demo mode either. */
+export async function deleteRecord(kind: DeletableRecord, id: string, orgId: string): Promise<{deleted: boolean; id: string}> {
+  await delay();
+  if (!can(role(), "editMasters")) throw new ApiError(403, "forbidden", "Only Owner or Manager can delete master records");
+  if (orgId !== getSession()?.orgId) throw new ApiError(403, "forbidden", "Select the current organisation");
+  const s = db();
+  const it = kind === "items" ? s.items.find(i => i.id === id && s.itemOrgIds[id] === orgId) : undefined;
+  const party = kind === "parties" ? s.parties.find(p => p.id === id && s.partyOrgIds[id] === orgId) : undefined;
+  const g = kind === "warehouses" ? s.godowns.find(g => g.id === id && g.orgId === orgId) : undefined;
+  if (!it && !party && !g) throw new ApiError(404, "not_found", "Record not found in this organisation");
+  const used = (message: string): never => { throw new ApiError(409, "record_in_use", message); };
+  if (party && party.outstanding !== 0) used("This party has an outstanding balance. Use Block instead.");
+  if (it && (it.stock.some(x => x.onHand !== 0 || x.held !== 0) || it.batches.length)) used("This item has stock, reservations or batch history.");
+  if (g && s.items.some(i => s.itemOrgIds[i.id] === orgId && (i.stock.some(x => x.godownId === id && (x.onHand !== 0 || x.held !== 0)) || i.batches.some(b => b.godownId === id)))) used("This warehouse has stock, reservations or batch history.");
+  if (g && s.users.some(u => u.godownIds.includes(id))) used("This warehouse is assigned to users.");
+  if (s.posted.some(e => kind === "items" ? e.itemId === id : kind === "warehouses" && e.godownId === id)) used("This record has stock history.");
+  const groups = [[s.quotations,s.quotationOrgIds],[s.salesOrders,s.salesOrderOrgIds],[s.challans,s.challanOrgIds],[s.invoices,s.invoiceOrgIds],[s.receipts,s.receiptOrgIds],[s.advances,s.advanceOrgIds],[s.pos,s.poOrgIds],[s.grns,s.grnOrgIds],[s.transfers,s.transferOrgIds],[s.adjustments,s.adjustmentOrgIds]] as const;
+  for (const [docs, owners] of groups) for (const d of docs) if (owners[d.id] === orgId && recordReferenced(kind,id,d)) used("This record is used by existing documents. Use Inactive or Block instead.");
+  if (it) { s.items = s.items.filter(i => i.id !== id); delete s.itemOrgIds[id]; }
+  if (party) { s.parties = s.parties.filter(p => p.id !== id); delete s.partyOrgIds[id]; }
+  if (g) { s.godowns = s.godowns.filter(g => g.id !== id); for (const i of s.items) if (s.itemOrgIds[i.id] === orgId) i.stock = i.stock.filter(x => x.godownId !== id); }
+  return {deleted:true,id};
 }

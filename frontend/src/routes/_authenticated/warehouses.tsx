@@ -1,3 +1,4 @@
+import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -104,9 +105,10 @@ function WarehousesPage() {
                   {g.manager && <span className="text-muted-foreground">Manager: {g.manager}</span>}
                 </div>
               </div>
-              <div className="mt-3 flex justify-end gap-2 border-t pt-3">
+              <div className="mt-3 flex flex-wrap justify-end gap-2 border-t pt-3">
                 <Button size="sm" variant="outline" asChild><Link to="/warehouses" search={{ warehouse: g.id }}><Eye className="size-4" /> Dashboard & stock</Link></Button>
                 {canEdit && <Button size="sm" variant="outline" onClick={() => setEditing(toInput(g))}><Pencil className="size-4" /> Edit</Button>}
+                <DeleteRecordButton kind="warehouses" id={g.id} name={g.name} orgId={orgId} />
               </div>
             </article>
           ))}

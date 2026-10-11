@@ -136,7 +136,7 @@ export class Uow {
 
   async godown(id: string, transferDestination = false): Promise<Godown | undefined> {
     if (!transferDestination) requireWarehouse(this.ctx, id);
-    const r = await one(this.conn, "SELECT * FROM godowns WHERE org_id = ? AND id = ?", [this.ctx.orgId, id]);
+    const r = await one(this.conn, `SELECT * FROM godowns WHERE org_id = ? AND id = ?${this.sfx}`, [this.ctx.orgId, id]);
     return r ? rowToGodown(r) : undefined;
   }
 
