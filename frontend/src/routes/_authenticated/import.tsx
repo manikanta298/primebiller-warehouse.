@@ -114,6 +114,7 @@ function ImportPage() {
             kind: r["kind"]!.toLowerCase() as PartyKind, name: r["name"]!, gstin,
             stateCode: gstin ? gstin.slice(0, 2) : r["stateCode"]!.padStart(2, "0"),
             city: r["city"] ?? "", phone: r["phone"] ?? "", creditLimit: n(r["creditLimit"]), creditDays: n(r["creditDays"]),
+            blocked: false,
           });
         } else {
           await api.saveGodown(orgId, {
