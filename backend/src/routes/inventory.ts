@@ -5,6 +5,7 @@ import { exec, rows } from "../db.js";
 import { ApiError } from "../errors.js";
 import { h, read, str, write } from "../http.js";
 import { requirePerm } from "../auth.js";
+import { canUseWarehouse, requireWarehouse, warehouseIds } from "../access.js";
 import { nowIso, today } from "../config.js";
 import { newId, rowToGodown, type Uow } from "../uow.js";
 import { loadItems } from "./core.js";
@@ -200,7 +201,7 @@ inventoryRouter.post("/transfers", h((req) => write(req, async (u) => {
   const input = z.object({ date, fromId: z.string(), toId: z.string(), vehicleNo: z.string().default(""), reason: z.string().default(""),
     lines: z.array(z.object({ itemId: z.string(), batchNo: z.string().optional(), qty: z.number() }).strict()).min(1).max(200) }).strict().parse(req.body);
   const from = await u.godown(input.fromId);
-  const to = await u.godown(input.toId);
+  const to = await u.godown(input.toId, true);
   // Lock items in a stable order to avoid deadlocks when two dispatches share items.
   const items = new Map<string, Item>();
   for (const id of [...new Set(input.lines.map((l) => l.itemId))].sort()) items.set(id, await u.item(id));
@@ -237,6 +238,7 @@ inventoryRouter.post("/transfers/:id/receive", h((req) => write(req, async (u) =
   const input = z.object({ lines: z.array(z.object({ received: z.number(), reason: z.string().optional() }).strict()).min(1).max(200) }).strict().parse(req.body);
   const t = await u.doc("transfers", String(req.params["id"]));
   if (!t) throw new ApiError(404, "not_found", "Transfer not found");
+  requireWarehouse(u.ctx, t.toId);
   if (t.status !== "in_transit") throw new ApiError(409, "invalid_status", "Only transfers in transit can be received");
   const rowsIn = input.lines.map((r, n) => ({ itemName: t.lines[n]?.itemName ?? `Line ${n + 1}`, sent: t.lines[n]?.qty ?? 0, received: r.received, reason: r.reason }));
   const problems = receiveProblems(rowsIn, t.lines.length);
@@ -397,6 +399,8 @@ inventoryRouter.get("/stock/ledger", h((req) => read(req, async (u) => {
     conds.push("godown_id = ?"); params.push(godownId);
   }
   if (batchNo) { conds.push("batch_no = ?"); params.push(batchNo); }
+  const assigned = warehouseIds(u.ctx);
+  if (assigned !== undefined) { conds.push(assigned.length ? "godown_id IN (?)" : "1=0"); if (assigned.length) params.push(assigned); }
   // Include ALL types/documents for each stock stream so running balances are accurate.
   // Reject oversized history instead of silently returning a misleading first 5,000.
   const result = await rows(u.conn, `SELECT * FROM stock_ledger WHERE ${conds.join(" AND ")} ORDER BY at, id LIMIT 5001`, params);
@@ -414,8 +418,8 @@ inventoryRouter.get("/alerts", h((req) => read(req, async (u) => {
   if (!alertReadRoles.includes(u.ctx.role)) throw new ApiError(403, "forbidden", "Your role cannot view stock alerts");
   const scope = str(req.query["godownId"]) ?? "all";
   if (scope !== "all" && !await u.godown(scope)) throw new ApiError(404, "not_found", "Godown not found in this organisation");
-  const items = await loadItems(u.conn, u.ctx.orgId);
-  const godowns = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ?", [u.ctx.orgId])).map(rowToGodown).filter((g) => scope === "all" || g.id === scope);
+  const items = await loadItems(u.conn, u.ctx.orgId, "", false, warehouseIds(u.ctx));
+  const godowns = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ?", [u.ctx.orgId])).map(rowToGodown).filter((g) => canUseWarehouse(u.ctx, g.id)).filter((g) => scope === "all" || g.id === scope);
   const acked = new Set((await rows(u.conn, "SELECT alert_id FROM alert_acks WHERE org_id = ?", [u.ctx.orgId])).map((r) => r["alert_id"] as string));
   return computeAlerts(items, godowns, today(), acked);
 })));
@@ -423,8 +427,8 @@ const ack = async (u: Uow, ids: string[]) => {
   if (!alertReadRoles.includes(u.ctx.role)) throw new ApiError(403, "forbidden", "Your role cannot acknowledge stock alerts");
   if (!ids.length || ids.length > 500 || ids.some((id) => typeof id !== "string" || id.length > 200))
     throw new ApiError(422, "invalid_alert", "Select between 1 and 500 valid alerts");
-  const items = await loadItems(u.conn, u.ctx.orgId);
-  const godowns = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ?", [u.ctx.orgId])).map(rowToGodown);
+  const items = await loadItems(u.conn, u.ctx.orgId, "", false, warehouseIds(u.ctx));
+  const godowns = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ?", [u.ctx.orgId])).map(rowToGodown).filter((g) => canUseWarehouse(u.ctx, g.id));
   const live = new Set(computeAlerts(items, godowns, today(), new Set()).map((alert) => alert.id));
   if (ids.some((id) => !live.has(id))) throw new ApiError(422, "invalid_alert", "A selected alert is no longer active. Refresh the list.");
   for (const id of new Set(ids))

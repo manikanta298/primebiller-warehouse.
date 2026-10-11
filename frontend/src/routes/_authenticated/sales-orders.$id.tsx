@@ -185,7 +185,7 @@ function Editor({ order }: { order: SalesOrder | null }) {
       </Link>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="eyebrow mb-1">Sales order</div>
+          <div className="eyebrow mb-1">Sales order</div>{order?.quotationNumber && <p className="text-sm text-muted-foreground">From quotation {order.quotationNumber} · linked advance receipts appear below</p>}
           <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
             <span className="num">{order?.number ?? (order ? "Draft" : "New order")}</span>
             <StatusBadge status={order?.status ?? "draft"} />

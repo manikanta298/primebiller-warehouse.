@@ -142,6 +142,16 @@ export interface LinkedDoc {
   amount: number;
 }
 
+export type QuotationStatus = "draft" | "issued" | "accepted" | "converted" | "cancelled";
+export interface QuotationInput extends SalesOrderInput { validUntil: string; terms: string }
+export interface Quotation extends Omit<SalesOrder, "status" | "number"> {
+  number: string; status: QuotationStatus; validUntil: string; terms: string;
+  supply: "intra" | "inter";
+  createdBy: string; createdAt: string; acceptedAt?: string; acceptedBy?: string;
+  salesOrderId?: string;
+  payments: { receiptId: string; receiptNo: string; date: string; advanceId: string; amount: number; requestKey: string }[];
+}
+
 export interface SalesOrder {
   id: string;
   number: string | null;
@@ -155,6 +165,8 @@ export interface SalesOrder {
   lines: SOLine[];
   notes: string;
   grandTotal: number;
+  quotationId?: string;
+  quotationNumber?: string;
   creditOverride?: { by: string; reason: string; at: string };
   linked: LinkedDoc[];
 }
@@ -407,6 +419,9 @@ export type EwbAction =
 
 // ---------- Tax invoices ----------
 export interface Advance {
+  godownId?: string;
+  quotationId?: string;
+  salesOrderId?: string;
   id: string;
   receiptNo: string;
   date: string;
@@ -451,6 +466,9 @@ export interface IssueInvoiceInput {
 
 export type PaymentMode = "cash" | "upi" | "neft" | "cheque";
 export interface Receipt {
+  godownId?: string;
+  quotationId?: string;
+  salesOrderId?: string;
   id: string;
   number: string;
   date: string;
@@ -464,6 +482,8 @@ export interface Receipt {
   createdBy: string;
 }
 export interface ReceiptInput {
+  quotationId?: string;
+  requestKey?: string;
   customerId: string;
   date: string;
   amount: number;

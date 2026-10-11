@@ -2,7 +2,7 @@
  * In-memory mock backend. Mirrors the REST API signatures in client.ts so the
  * UI can be built before the Express + MySQL service exists.
  */
-import type { Adjustment, AdjustmentInput, AppUser, AppUserInput, NumberSeries, NumberSeriesInput, DocType, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Role,
+import type { Quotation, QuotationInput, Adjustment, AdjustmentInput, AppUser, AppUserInput, NumberSeries, NumberSeriesInput, DocType, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Role,
   Dashboard,
   Godown,
   WarehouseActivity,
@@ -31,6 +31,8 @@ import { itemEditProblems, normaliseItemDraft, type ItemEditPatch } from "@/lib/
 import { masterProblems, normaliseMaster } from "@/lib/master-rules";
 import { normaliseGodown, godownProblems, canDeactivateWarehouse, warehouseStockSummary } from "@/lib/godown-rules";
 import { normaliseParty, partyProblems, duplicatePartyGstin, filterParties, partyStateName, partiesForOrg } from "@/lib/party-rules";
+import { quotationProblems, quotationActionProblem, quotationPaymentProblem, invoiceAdvanceAllocations } from "@/lib/quotation-rules";
+import { fyLabel } from "@/lib/numbering";
 import { orderCustomerEligible, orderDraftProblems, stockHoldProblems, salesOrdersForOrg } from "@/lib/sales-order-rules";
 import { can } from "@/lib/permissions";
 import { docNumber, seriesProblems } from "@/lib/numbering";
@@ -77,6 +79,9 @@ interface Store {
   parties: Party[];
   /** Mock-only ownership; Party DTO does not include orgId. */
   partyOrgIds: Record<string, string>;
+  quotations: Quotation[];
+  quotationOrgIds: Record<string, string>;
+  quotationCounters: Record<string, number>;
   salesOrders: SalesOrder[];
   /** Mock-only organisation ownership for documents. */
   salesOrderOrgIds: Record<string, string>;
@@ -327,6 +332,7 @@ function db(): Store {
   store = { seriesByOrg: Object.fromEntries(orgs.map((org) => [org.id, clone(series)])),
     userOrgIds: Object.fromEntries(users.map((u) => [u.id, u.id === "u7" ? ["org2"] : ["org1"]])),
     issuedByOrg: { org2: {} },
+    quotations: [], quotationOrgIds: {}, quotationCounters: {},
     settingsByOrg, printProfilesByOrg, users, orgs, godowns, items, itemOrgIds, parties, partyOrgIds, salesOrders, salesOrderOrgIds, soSeq: 42, notifications, masters: { uoms, categories, brands, hsn }, masterOrgIds, challans, challanOrgIds, dcSeq: 112, posted: [], invoices: [], invoiceOrgIds: {}, invSeq: 287, receipts: [], receiptOrgIds: {}, advanceOrgIds: { adv1: "org1", adv2: "org1" }, rctSeq: 0, pos: [], poOrgIds: {}, poSeq: 18, grns: [], grnOrgIds: {}, grnSeq: 45, transfers: [], transferOrgIds: {}, trfSeq: 31, adjustments: [], adjustmentOrgIds: {}, adjSeq: 10, advances: [
     { id: "adv1", receiptNo: "RCT/26-27/0201", date: "2026-09-28", customerId: "p1", amount: 50000, remaining: 50000 },
     { id: "adv2", receiptNo: "RCT/26-27/0209", date: "2026-10-05", customerId: "p1", amount: 100000, remaining: 100000 },
@@ -647,6 +653,105 @@ export async function saveMaster<K extends MasterKind>(kind: K, row: Omit<Master
   return clone(saved);
 }
 
+// ---------- Quotations ----------
+const quoteToday = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+function quoteWarehouseAllowed(id: string) {
+  const user = getSession()?.user;
+  return !!user && (["Owner", "Manager", "Accountant"].includes(user.role) || (db().users.find(u => u.id === user.id)?.godownIds ?? []).includes(id));
+}
+function quoteForOrg(id: string): Quotation {
+  const s = db(), orgId = getSession()?.orgId ?? "";
+  const q = s.quotations.find(q => q.id === id && s.quotationOrgIds[q.id] === orgId);
+  if (!q) throw new ApiError(404, "not_found", "Quotation not found");
+  if (!quoteWarehouseAllowed(q.godownId)) throw new ApiError(403, "warehouse_forbidden", "Warehouse is not assigned to you");
+  return q;
+}
+export async function listQuotations(): Promise<Quotation[]> {
+  await delay();
+  if (!["Owner", "Manager", "Sales", "Accountant"].includes(role())) throw new ApiError(403, "forbidden", "Your role cannot view quotations");
+  const s = db(), orgId = getSession()?.orgId ?? "";
+  return clone(s.quotations.filter(q => s.quotationOrgIds[q.id] === orgId && quoteWarehouseAllowed(q.godownId)));
+}
+export async function getQuotation(id: string): Promise<Quotation> {
+  await listQuotations(); return clone(quoteForOrg(id));
+}
+export async function saveQuotation(input: QuotationInput): Promise<Quotation> {
+  await delay();
+  if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot create quotations");
+  const s = db(), orgId = getSession()?.orgId ?? "";
+  const problems = quotationProblems(input, quoteToday());
+  if (problems.length) throw new ApiError(422, "validation", problems[0]!);
+  const previous = input.id ? quoteForOrg(input.id) : undefined;
+  if (previous && previous.status !== "draft") throw new ApiError(409, "invalid_status", "Only draft quotations can be edited");
+  const cust = s.parties.find(p => p.id === input.customerId && s.partyOrgIds[p.id] === orgId);
+  if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked)) throw new ApiError(422, "validation", "Choose an active customer");
+  const g = s.godowns.find(g => g.id === input.godownId && g.orgId === orgId && g.active);
+  if (!g || !quoteWarehouseAllowed(g.id)) throw new ApiError(403, "warehouse_forbidden", "Choose an assigned active warehouse");
+  const lines = input.lines.map(l => {
+    const it = s.items.find(it => it.id === l.itemId && s.itemOrgIds[it.id] === orgId);
+    if (!it?.active || l.uom !== it.baseUom) throw new ApiError(422, "validation", "Select an active item using its base unit");
+    return { ...l, id: crypto.randomUUID(), deliveredQty: 0, itemName: it.name, hsn: it.hsn, gstRate: it.gstRate, uom: it.baseUom };
+  });
+  const org = s.orgs.find(o => o.id === orgId)!;
+  const supply = supplyType(org.stateCode, cust.stateCode);
+  const fy = fyLabel(input.date), counterKey = `${orgId}:${fy}`;
+  const seq = (s.quotationCounters[counterKey] ?? 0) + 1;
+  const q: Quotation = {
+    id: previous?.id ?? crypto.randomUUID(), number: previous?.number ?? docNumber("QT", fy, seq, 5),
+    date: input.date, validUntil: input.validUntil, notes: input.notes, terms: input.terms,
+    customerId: cust.id, customerName: cust.name, placeOfSupplyCode: cust.stateCode, placeOfSupplyName: cust.stateName,
+    godownId: g.id, status: "draft", lines, grandTotal: computeTotals(lines, supply).grandTotal, supply,
+    linked: [], payments: [], createdBy: previous?.createdBy ?? userName(), createdAt: previous?.createdAt ?? nowIso(),
+  };
+  if (previous) Object.assign(previous, q);
+  else { s.quotationCounters[counterKey] = seq; s.quotations.push(q); s.quotationOrgIds[q.id] = orgId; }
+  return clone(q);
+}
+export async function quotationAction(id: string, action: "issue" | "accept" | "cancel"): Promise<Quotation> {
+  await delay();
+  if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot change quotations");
+  const q = quoteForOrg(id);
+  if (action === "cancel") {
+    if (!["draft", "issued", "accepted"].includes(q.status) || q.payments.length) throw new ApiError(409, "invalid_status", "Cannot cancel a converted quotation or one with advances");
+    q.status = "cancelled";
+  } else {
+    const problem = quotationActionProblem(q, action, quoteToday());
+    if (problem) throw new ApiError(409, "invalid_status", problem);
+    q.status = action === "issue" ? "issued" : "accepted";
+    if (action === "accept") { q.acceptedAt = nowIso(); q.acceptedBy = userName(); }
+  }
+  return clone(q);
+}
+export async function convertQuotation(id: string): Promise<SalesOrder> {
+  await delay();
+  if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot convert quotations");
+  const s = db(), q = quoteForOrg(id), orgId = getSession()?.orgId ?? "";
+  if (q.salesOrderId) return getSalesOrder(q.salesOrderId);
+  const problem = quotationActionProblem(q, "convert", quoteToday());
+  if (problem) throw new ApiError(409, "invalid_status", problem);
+  const cust = s.parties.find(p => p.id === q.customerId && s.partyOrgIds[p.id] === orgId);
+  const org = s.orgs.find(o => o.id === orgId)!;
+  if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked) || !s.godowns.some(g => g.id === q.godownId && g.active)) throw new ApiError(422, "validation", "Customer or warehouse is unavailable");
+  if (cust.stateCode !== q.placeOfSupplyCode || supplyType(org.stateCode, cust.stateCode) !== q.supply) throw new ApiError(409, "customer_changed", "Customer state changed; create a new quotation");
+  for (const l of q.lines) {
+    const it = s.items.find(it => it.id === l.itemId && s.itemOrgIds[it.id] === orgId);
+    if (!it?.active || it.baseUom !== l.uom || it.hsn !== l.hsn || it.gstRate !== l.gstRate) throw new ApiError(409, "item_changed", "Item tax or unit details changed; create a new quotation");
+  }
+  const payments = q.payments.map(p => ({ p, a: s.advances.find(a => a.id === p.advanceId && s.advanceOrgIds[a.id] === orgId), receipt: s.receipts.find(rc => rc.id === p.receiptId && s.receiptOrgIds[rc.id] === orgId) }));
+  if (payments.some(({ a, receipt }) => !a || !receipt || a.quotationId !== q.id || a.customerId !== q.customerId)) throw new ApiError(409, "invalid_advance", "Quotation advance is missing or mismatched");
+  const o: SalesOrder = {
+    id: crypto.randomUUID(), number: null, date: quoteToday(), customerId: q.customerId, customerName: q.customerName,
+    placeOfSupplyCode: q.placeOfSupplyCode, placeOfSupplyName: q.placeOfSupplyName, godownId: q.godownId, status: "draft",
+    notes: [q.notes, q.terms].filter(Boolean).join("\n").slice(0, 2000), lines: q.lines.map(l => ({ ...l, id: crypto.randomUUID(), deliveredQty: 0 })),
+    grandTotal: q.grandTotal, quotationId: q.id, quotationNumber: q.number,
+    linked: q.payments.map(p => ({ type: "receipt", number: p.receiptNo, date: p.date, status: "Advance", amount: p.amount })),
+  };
+  for (const { a, receipt } of payments) { a!.salesOrderId = o.id; receipt!.salesOrderId = o.id; }
+  s.salesOrders.push(o); s.salesOrderOrgIds[o.id] = orgId;
+  q.status = "converted"; q.salesOrderId = o.id;
+  return clone(o);
+}
+
 // ---------- Sales orders ----------
 export async function listSalesOrders(status?: string): Promise<SalesOrder[]> {
   await delay();
@@ -681,6 +786,7 @@ export async function saveSalesOrder(input: SalesOrderInput): Promise<SalesOrder
   const existing = input.id ? s.salesOrders.find((o) => o.id === input.id && s.salesOrderOrgIds[o.id] === orgId) : undefined;
   if (input.id && !existing) throw new ApiError(404, "not_found", "Sales order not found");
   if (existing && existing.status !== "draft") throw new ApiError(409, "invalid_status", "Only draft orders can be edited");
+  if (existing?.quotationId && (existing.customerId !== input.customerId || existing.godownId !== input.godownId)) throw new ApiError(409, "quotation_link", "Quotation orders must retain their customer and warehouse");
   const lines = input.lines.map((l, i) => {
     const it = s.items.find((item) => item.id === l.itemId && s.itemOrgIds[item.id] === orgId);
     if (!it) throw new ApiError(404, "not_found", "Item not found in this organisation");
@@ -704,6 +810,7 @@ export async function saveSalesOrder(input: SalesOrderInput): Promise<SalesOrder
     lines,
     grandTotal: t.grandTotal,
     linked: existing?.linked ?? [],
+    ...(existing?.quotationId ? { quotationId: existing.quotationId, quotationNumber: existing.quotationNumber } : {}),
   };
   if (existing) Object.assign(existing, base);
   else { s.salesOrders.push(base); s.salesOrderOrgIds[base.id] = orgId; }
@@ -1120,9 +1227,9 @@ export async function issueInvoice(input: IssueInvoiceInput): Promise<Invoice> {
   // Gapless: sequence only advances inside the same (server-side) transaction that saves the invoice.
   const seq = s.invSeq + 1;
   const inv = buildInvoice(s, `inv${seq}`, fmtNo("INV", seq), input.date, cs);
-  if (input.applyAdvances) {
-    const advs = s.advances.filter((a) => a.customerId === inv.customerId && a.remaining > 0);
-    for (const al of applyAdvancesOldestFirst(advs, inv.grandTotal)) {
+  {
+    const advs = s.advances.filter(a => s.advanceOrgIds[a.id] === orgId && a.customerId === inv.customerId && a.remaining > 0);
+    for (const al of invoiceAdvanceAllocations(advs, cs.map(c => c.soId), input.applyAdvances, inv.grandTotal)) {
       const a = advs.find((x) => x.id === al.advanceId)!;
       a.remaining -= al.amount;
       inv.advances.push({ advanceId: a.id, receiptNo: a.receiptNo, amount: al.amount });
@@ -1202,6 +1309,30 @@ export async function listAllAdvances(): Promise<(Advance & { customerName: stri
     .map((a) => ({ ...a, customerName: s.parties.find((p) => p.id === a.customerId)?.name ?? "" })));
 }
 export async function recordReceipt(input: ReceiptInput): Promise<Receipt> {
+  if (input.quotationId) {
+    await delay();
+    if (!can(role(), "recordReceipt")) throw new ApiError(403, "forbidden", "Your role cannot record receipts");
+    const s = db(), q = quoteForOrg(input.quotationId), orgId = getSession()?.orgId ?? "";
+    const replay = q.payments.find(p => p.requestKey === input.requestKey);
+    if (replay) {
+      const rc = s.receipts.find(rc => rc.id === replay.receiptId && s.receiptOrgIds[rc.id] === orgId);
+      if (!rc || rc.customerId !== input.customerId || rc.amount !== input.amount || rc.date !== input.date || rc.mode !== input.mode || rc.reference !== input.reference || input.allocations?.length) throw new ApiError(409, "retry_mismatch", "Payment retry key was already used for different details");
+      return clone(rc);
+    }
+    const problem = quotationPaymentProblem(q, input, quoteToday());
+    if (problem) throw new ApiError(422, "invalid_receipt", problem);
+    const errors = receiptProblems({ ...input, allocations: [] }, [], quoteToday());
+    if (errors.length) throw new ApiError(422, "invalid_receipt", errors[0]!);
+    const cust = s.parties.find(p => p.id === q.customerId && s.partyOrgIds[p.id] === orgId);
+    if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked)) throw new ApiError(422, "validation", "Select an active customer");
+    const seq = s.rctSeq + 1, number = fmtNo("RCT", seq);
+    const rc: Receipt = { id: `r${seq}`, number, date: input.date, customerId: q.customerId, customerName: cust.name, amount: input.amount, mode: input.mode, reference: input.reference, allocations: [], advance: input.amount, createdBy: userName(), quotationId: q.id, godownId: q.godownId };
+    const a: Advance = { id: `adv-${rc.id}`, receiptNo: number, date: input.date, customerId: q.customerId, amount: input.amount, remaining: input.amount, quotationId: q.id, godownId: q.godownId };
+    s.rctSeq = seq; s.receipts.push(rc); s.receiptOrgIds[rc.id] = orgId;
+    s.advances.push(a); s.advanceOrgIds[a.id] = orgId;
+    q.payments.push({ receiptId: rc.id, receiptNo: number, date: input.date, advanceId: a.id, amount: input.amount, requestKey: input.requestKey! });
+    return clone(rc);
+  }
   await delay(350);
   if (!can(role(), "recordReceipt")) throw new ApiError(403, "forbidden", "Only Owner, Manager or Accountant can record receipts");
   const s = db();

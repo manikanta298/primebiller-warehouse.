@@ -34,8 +34,9 @@
     "test:reports": "node --experimental-strip-types --test tests/report-rules.test.mjs",
     "build:vercel": "node scripts/build-vercel.mjs",
     "typecheck:frontend": "tsc --noEmit -p tsconfig.json",
-    "ci:frontend": "npm run test:conversion && npm run test:first-admin && npm run test:responsive && npm run build:vercel",
-    "test:responsive": "vitest run src/test/app-shell.test.tsx"
+    "ci:frontend": "npm run test:conversion && npm run test:first-admin && npm run test:responsive && npm run test:quotations && npm run build:vercel",
+    "test:responsive": "vitest run src/test/app-shell.test.tsx",
+    "test:quotations": "vitest run src/test/quotations.test.tsx"
   },
   "overrides": {
     "rolldown": "1.2.1"

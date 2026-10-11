@@ -5,6 +5,8 @@ import { z } from "zod";
 import { exec, newId, one, rows, withTransaction } from "../db.js";
 import { ApiError } from "../errors.js";
 import { h, read, str } from "../http.js";
+import { warehouseIds } from "../access.js";
+import { can } from "../shared/permissions.js";
 import { requirePerm } from "../auth.js";
 import { config, today } from "../config.js";
 import { stateName } from "../states.js";
@@ -110,7 +112,11 @@ async function getSettings(conn: Parameters<typeof rows>[0], orgId: string): Pro
   return { ...b, gsp: { ...b.gsp, secretSet: !!r["gsp_secret_enc"] } };
 }
 
-adminRouter.get("/settings", h((req) => read(req, (u) => getSettings(u.conn, u.ctx.orgId))));
+adminRouter.get("/settings", h((req) => read(req, async (u) => {
+  const settings = await getSettings(u.conn, u.ctx.orgId);
+  if (warehouseIds(u.ctx) !== undefined) return { ...settings, bankName: "", bankAccount: "", ifsc: "", gsp: { provider: "", username: "", clientId: "", sandbox: true, secretSet: false } };
+  return settings;
+})));
 
 adminRouter.put("/settings", h(async (req) => {
   requirePerm(req.ctx, "settings", "Only the Owner can change settings");
@@ -200,10 +206,10 @@ adminRouter.put("/print-profiles/:id", h(async (req) => {
 // ---------- Search ----------
 adminRouter.get("/search", h((req) => read(req, async (u) => {
   const docs: DocHit[] = [
-    ...(await u.docs_("salesOrders", "number IS NOT NULL")).map((o) => ({ type: "SO" as const, id: o.id, number: o.number!, date: o.date, party: o.customerName, amount: o.grandTotal, status: o.status })),
-    ...(await u.docs_("challans")).map((c) => ({ type: "DC" as const, id: c.id, number: c.number, date: c.date, party: c.customerName, amount: c.value, status: c.status })),
-    ...(await u.docs_("invoices")).map(refreshInvoice).map((i) => ({ type: "INV" as const, id: i.id, number: i.number, date: i.date, party: i.customerName, amount: i.grandTotal, status: i.status })),
-    ...(await u.docs_("receipts")).map((r) => ({ type: "RCT" as const, id: r.id, number: r.number, date: r.date, party: r.customerName, amount: r.amount, status: r.advance > 0 ? "advance" : "allocated" })),
+    ...(can(u.ctx.role, "salesOrders") ? await u.docs_("salesOrders", "number IS NOT NULL") : []).map((o) => ({ type: "SO" as const, id: o.id, number: o.number!, date: o.date, party: o.customerName, amount: o.grandTotal, status: o.status })),
+    ...(can(u.ctx.role, "dispatch") ? await u.docs_("challans") : []).map((c) => ({ type: "DC" as const, id: c.id, number: c.number, date: c.date, party: c.customerName, amount: c.value, status: c.status })),
+    ...(can(u.ctx.role, "issueInvoice") ? await u.docs_("invoices") : []).map(refreshInvoice).map((i) => ({ type: "INV" as const, id: i.id, number: i.number, date: i.date, party: i.customerName, amount: i.grandTotal, status: i.status })),
+    ...(can(u.ctx.role, "recordReceipt") ? await u.docs_("receipts") : []).map((r) => ({ type: "RCT" as const, id: r.id, number: r.number, date: r.date, party: r.customerName, amount: r.amount, status: r.advance > 0 ? "advance" : "allocated" })),
   ];
   const num = (v: unknown) => (typeof v === "string" && v !== "" ? Number(v) : undefined);
   return filterDocs(docs, {

@@ -11,6 +11,7 @@ import { canOverrideCredit, computeTotals, creditCheck, ewayBillRequired, supply
 import { canCancelTestEwb, dispatchPlanProblems, dispatchTransportProblems, ewbValidityDays, ewbValidUntil, normaliseVehicle, VEHICLE_PATTERN } from "../shared/challan-rules.js";
 import { applyAdvancesOldestFirst, dueDateFor, invoiceIssueProblems, invoiceCancelProblems, invoiceStatus } from "../shared/invoice-rules.js";
 import { receiptProblems, receiptAllocation, receiptPaise } from "../shared/receipt-rules.js";
+import { invoiceAdvanceAllocations, quotationPaymentProblem } from "../shared/quotation-rules.js";
 import { orderCustomerEligible, orderDraftProblems, stockHoldProblems } from "../shared/sales-order-rules.js";
 import type { Challan, ChallanLine, Invoice, Receipt, SalesOrder } from "../shared/types.js";
 
@@ -47,6 +48,7 @@ const saveSo = h((req) => write(req, async (u) => {
   const existing = input.id ? await u.doc("salesOrders", input.id) : undefined;
   if (input.id && !existing) throw new ApiError(404, "not_found", "Sales order not found");
   if (existing && existing.status !== "draft") throw new ApiError(409, "invalid_status", "Only draft orders can be edited");
+  if (existing?.quotationId && (input.customerId !== existing.customerId || input.godownId !== existing.godownId)) throw new ApiError(409, "quotation_link", "Quotation orders must retain their customer and warehouse");
   // Quoted rates are editable; HSN, UOM and GST always come from the item master.
   const lines = [];
   for (const [i, l] of input.lines.entries()) {
@@ -60,6 +62,7 @@ const saveSo = h((req) => write(req, async (u) => {
     id: existing?.id ?? newId("so"), number: null, date: input.date, customerId: cust.id, customerName: cust.name,
     placeOfSupplyCode: cust.stateCode, placeOfSupplyName: cust.stateName, godownId: input.godownId, status: "draft", notes: input.notes,
     lines, grandTotal: t.grandTotal, linked: existing?.linked ?? [],
+    ...(existing?.quotationId ? { quotationId: existing.quotationId, quotationNumber: existing.quotationNumber } : {}),
   };
   u.put("salesOrders", o);
   return o;
@@ -353,9 +356,9 @@ salesRouter.post("/invoices", h((req) => write(req, async (u) => {
     taxable: t.taxable, cgst: t.cgst, sgst: t.sgst, igst: t.igst, roundOff: t.roundOff, grandTotal: t.grandTotal, byRate: t.byRate,
     advances: [], paid: 0, balance: t.grandTotal, status: "awaiting_payment", createdBy: u.ctx.userName,
   };
-  if (input.applyAdvances) {
-    const advs = (await u.docs_("advances", "party_id = ? AND status = 'open'", [cust.id], "doc_date, id"));
-    for (const al of applyAdvancesOldestFirst(advs, inv.grandTotal)) {
+  { // Quote-linked advances apply automatically; unrelated quotes never fund this invoice.
+    const advs = await u.docs_("advances", "party_id = ? AND status = 'open'", [cust.id], "doc_date, id");
+    for (const al of invoiceAdvanceAllocations(advs, cs.map(c => c.soId), input.applyAdvances, inv.grandTotal)) {
       const a = advs.find((x) => x.id === al.advanceId)!;
       a.remaining -= al.amount;
       u.put("advances", a);
@@ -456,18 +459,34 @@ salesRouter.get("/receipts/:id", h((req) => read(req, async (u) => {
 salesRouter.post("/receipts", h((req) => write(req, async (u) => {
   requirePerm(u.ctx, "recordReceipt", "Only Owner, Manager or Accountant can record receipts");
   const input = z.object({
+    quotationId: z.string().min(1).max(40).optional(), requestKey: z.string().max(80).optional(),
     customerId: z.string().trim().min(1), date: z.string(), amount: z.number(),
     mode: z.enum(["cash", "upi", "neft", "cheque"]), reference: z.string().default(""),
     allocations: z.array(z.object({ invoiceId: z.string().min(1), amount: z.number() }).strict()).max(500).optional().nullable(),
   }).strict().parse(req.body);
+  const quote = input.quotationId ? await u.doc("quotations", input.quotationId) : undefined;
+  if (input.quotationId && !quote) throw new ApiError(404, "not_found", "Quotation not found");
+  if (quote) {
+    const replay = quote.payments.find(p => p.requestKey === input.requestKey);
+    if (replay) {
+      const rc = await u.doc("receipts", replay.receiptId);
+      if (!rc || rc.customerId !== input.customerId || rc.amount !== input.amount || rc.date !== input.date || rc.mode !== input.mode || rc.reference !== input.reference || input.allocations?.length) throw new ApiError(409, "retry_mismatch", "Payment retry key was already used for different details");
+      return rc;
+    }
+    const problem = quotationPaymentProblem(quote, input, today());
+    if (problem) throw new ApiError(422, "invalid_receipt", problem);
+    const errors = receiptProblems({ ...input, allocations: [] }, [], today());
+    if (errors.length) throw new ApiError(422, "invalid_receipt", errors[0]!, errors);
+  }
   const cust = await u.party(input.customerId);
   if (!cust) throw new ApiError(404, "not_found", "Customer not found");
   if (cust.kind !== "customer" && cust.kind !== "both") throw new ApiError(422, "invalid_customer", "Select a customer, not a supplier or transporter");
+  if (quote && cust.blocked) throw new ApiError(422, "blocked", "Customer is blocked");
   const open = (await u.docs_("invoices", "party_id = ? AND status <> 'cancelled'", [cust.id], "doc_date, number"))
     .map(refreshInvoice).filter((i) => i.balance > 0);
   const problems = receiptProblems(input, open, today());
   if (problems.length) throw new ApiError(422, "invalid_receipt", problems[0]!, problems);
-  const result = input.allocations == null ? receiptAllocation(open, input.amount) : {
+  const result = quote ? { allocations: [], advance: input.amount } : input.allocations == null ? receiptAllocation(open, input.amount) : {
     allocations: input.allocations.filter((a) => a.amount > 0),
     advance: ((receiptPaise(input.amount) ?? 0) - input.allocations.reduce((total, a) => total + (receiptPaise(a.amount) ?? 0), 0)) / 100,
   };
@@ -479,6 +498,7 @@ salesRouter.post("/receipts", h((req) => write(req, async (u) => {
   const rc: Receipt = {
     id: newId("r"), number, date: input.date, customerId: cust.id, customerName: cust.name, amount: input.amount, mode: input.mode,
     reference: input.reference, advance, createdBy: u.ctx.userName, allocations: [],
+    ...(quote ? { quotationId: quote.id, godownId: quote.godownId } : {}),
   };
   for (const a of allocations) {
     const inv = open.find((i) => i.id === a.invoiceId)!;
@@ -496,7 +516,11 @@ salesRouter.post("/receipts", h((req) => write(req, async (u) => {
     rc.allocations.push({ invoiceId: inv.id, invoiceNo: inv.number, amount: a.amount });
   }
   u.put("receipts", rc);
-  if (advance > 0) u.put("advances", { id: `adv-${rc.id}`, receiptNo: number, date: input.date, customerId: cust.id, amount: advance, remaining: advance });
+  if (advance > 0) u.put("advances", { id: `adv-${rc.id}`, receiptNo: number, date: input.date, customerId: cust.id, amount: advance, remaining: advance, ...(quote ? { quotationId: quote.id, godownId: quote.godownId } : {}) });
+  if (quote) {
+    quote.payments.push({ receiptId: rc.id, receiptNo: number, date: input.date, advanceId: `adv-${rc.id}`, amount: input.amount, requestKey: input.requestKey! });
+    u.put("quotations", quote);
+  }
   cust.outstanding = Math.max(0, Math.round((cust.outstanding - (input.amount - advance)) * 100) / 100);
   u.touchParty(cust);
   return rc;

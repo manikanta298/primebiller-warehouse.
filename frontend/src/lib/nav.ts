@@ -15,6 +15,7 @@ export const NAV = [
   {
     section: "Sales",
     items: [
+      { to: "/quotations", label: "Quotations", icon: FileText },
       { to: "/sales-orders", label: "Sales orders", icon: FileText },
       { to: "/challans", label: "Delivery challans", icon: Truck },
       { to: "/invoices", label: "Tax invoices", icon: Receipt },

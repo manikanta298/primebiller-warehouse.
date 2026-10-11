@@ -5,6 +5,7 @@ import { exec, newId, one, rows, withTransaction, bool } from "../db.js";
 import { ApiError } from "../errors.js";
 import { h, read, str } from "../http.js";
 import { requirePerm } from "../auth.js";
+import { canUseWarehouse, warehouseIds } from "../access.js";
 import { today } from "../config.js";
 import { hydrateItems, rowToGodown, rowToParty, saveItem } from "../uow.js";
 import { stateName } from "../states.js";
@@ -36,7 +37,13 @@ async function godownValues(conn: Parameters<typeof rows>[0], orgId: string) {
 
 coreRouter.get("/orgs/:orgId/godowns", h((req) => read(req, async (u) => {
   if (req.params["orgId"] !== u.ctx.orgId) throw new ApiError(403, "forbidden", "Wrong organisation");
-  const gs = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ? ORDER BY name", [u.ctx.orgId])).map(rowToGodown);
+  const all = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ? ORDER BY name", [u.ctx.orgId])).map(rowToGodown);
+  // Destination lookup exposes only a minimal routing directory, never stock/activity.
+  if (req.query["purpose"] === "transfer") {
+    requirePerm(u.ctx, "transfer", "Your role cannot create transfers");
+    return all.filter((g) => g.active).map((g) => ({ id: g.id, code: g.code, name: g.name, active: g.active }));
+  }
+  const gs = all.filter((g) => canUseWarehouse(u.ctx, g.id));
   if (req.query["detail"] !== "1") return gs;
   const values = await godownValues(u.conn, u.ctx.orgId);
   return gs.map((g) => ({ ...g, ...(values.get(g.id) ?? { stockQty: 0, heldQty: 0, stockValue: 0, itemCount: 0 }) }));
@@ -137,6 +144,7 @@ coreRouter.put("/orgs/:orgId/godowns/:id", h(saveGodown));
 
 // ---------- Notifications ----------
 coreRouter.get("/notifications", h((req) => read(req, async (u) => {
+  if (warehouseIds(u.ctx) !== undefined) return [];
   const r = await rows(u.conn, "SELECT id, title, created_at, is_read FROM notifications WHERE org_id = ? ORDER BY created_at DESC LIMIT 30", [u.ctx.orgId]);
   return r.map((n) => ({ id: n["id"], title: n["title"], time: relTime(n["created_at"]), read: bool(n["is_read"]) }));
 })));
@@ -148,14 +156,14 @@ function relTime(at: string) {
 }
 
 // ---------- Items ----------
-export async function loadItems(conn: Parameters<typeof rows>[0], orgId: string, q = "", lock = false): Promise<Item[]> {
+export async function loadItems(conn: Parameters<typeof rows>[0], orgId: string, q = "", lock = false, allowedGodowns?: string[]): Promise<Item[]> {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const where = words.map(() => "LOWER(CONCAT_WS(' ', name, sku, hsn, brand)) LIKE ?").join(" AND ");
   const r = await rows(conn, `SELECT * FROM items WHERE org_id = ?${where ? ` AND ${where}` : ""} ORDER BY name`, [orgId, ...words.map((w) => `%${w}%`)]);
-  return hydrateItems(conn as never, r, lock);
+  return hydrateItems(conn as never, r, lock, allowedGodowns);
 }
 
-coreRouter.get("/items", h((req) => read(req, (u) => loadItems(u.conn, u.ctx.orgId, str(req.query["q"]) ?? ""))));
+coreRouter.get("/items", h((req) => read(req, (u) => loadItems(u.conn, u.ctx.orgId, str(req.query["q"]) ?? "", false, warehouseIds(u.ctx)))));
 coreRouter.get("/items/:id", h((req) => read(req, (u) => u.item(String(req.params["id"])))));
 
 const itemFields = z.object({
@@ -359,21 +367,22 @@ coreRouter.put("/masters/:kind/:id", h(saveMaster));
 // ---------- Dashboard ----------
 coreRouter.get("/dashboard", h((req) => read(req, async (u): Promise<Dashboard> => {
   const scope = str(req.query["godownId"]) ?? "all";
-  const godowns = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ? ORDER BY name", [u.ctx.orgId])).map(rowToGodown);
+  const godowns = (await rows(u.conn, "SELECT * FROM godowns WHERE org_id = ? ORDER BY name", [u.ctx.orgId])).map(rowToGodown).filter((g) => canUseWarehouse(u.ctx, g.id));
   if (scope !== "all" && !godowns.some((g) => g.id === scope)) {
     throw new ApiError(404, "godown_not_found", "Godown not found in this organisation");
   }
   const inScope = (g: string) => scope === "all" || g === scope;
   const t = today();
   const { todayStart, tomorrowStart, lastSevenDaysStart } = indiaBusinessDayBoundsUtc(t);
-  const items = await loadItems(u.conn, u.ctx.orgId);
+  const items = await loadItems(u.conn, u.ctx.orgId, "", false, warehouseIds(u.ctx));
   const alerts = computeAlerts(items, godowns.filter((g) => inScope(g.id)), t, new Set());
   const inventory = dashboardInventory(items, godowns, scope, alerts);
 
   // Half-open IST business-day boundaries, converted to the UTC DATETIME used
   // by the ledger, include movements after midnight India time correctly.
-  const gParam = scope === "all" ? [] : [scope];
-  const gWhere = scope === "all" ? "" : " AND godown_id = ?";
+  const assigned = warehouseIds(u.ctx);
+  const gParam = scope !== "all" ? [scope] : assigned === undefined || !assigned.length ? [] : [assigned];
+  const gWhere = scope !== "all" ? " AND godown_id = ?" : assigned === undefined ? "" : assigned.length ? " AND godown_id IN (?)" : " AND 1=0";
   const today_ = await one(u.conn,
     `SELECT COUNT(*) n FROM stock_ledger WHERE org_id = ? AND type <> 'OPENING' AND at >= ? AND at < ?${gWhere}`,
     [u.ctx.orgId, todayStart, tomorrowStart, ...gParam]);
@@ -384,7 +393,7 @@ coreRouter.get("/dashboard", h((req) => read(req, async (u): Promise<Dashboard> 
   const typeOf = { grn: "Purchase", challan: "Sale", transfer: "Transfer", adjustment: "Adjustment", opening: "Adjustment" } as const;
 
   const sos = await u.docs_("salesOrders");
-  const overdue = (await u.docs_("invoices", "status <> 'cancelled' AND status <> 'paid'"))
+  const overdue = (warehouseIds(u.ctx) === undefined ? await u.docs_("invoices", "status <> 'cancelled' AND status <> 'paid'") : [])
     .filter((invoice) => invoice.balance > 0 && invoice.dueDate < t);
   // Invoices contain linked challans rather than a direct godown id.
   // Only show invoices linked to this godown when the dashboard is filtered.

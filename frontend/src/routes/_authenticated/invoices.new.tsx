@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { useSession } from "@/lib/session";
 import { formatDate, formatINR } from "@/lib/format";
 import { computeTotals, supplyType } from "@/lib/gst";
+import { invoiceAdvanceAllocations } from "@/lib/quotation-rules";
 import { applyAdvancesOldestFirst, invoiceIssueProblems } from "@/lib/invoice-rules";
 import { PageHeader, EmptyState, ErrorState, LoadingRows } from "@/components/app/states";
 import { Field, NativeSelect } from "@/components/app/form-bits";
@@ -55,10 +56,10 @@ function NewInvoice() {
   const advQ = useQuery({ queryKey: ["advances", session?.orgId, customerId], queryFn: () => api.listAdvances(customerId), enabled: !!session?.orgId && !!customerId });
   const totals = sel.length && orgState && new Set(sel.map((c) => c.placeOfSupplyCode)).size === 1
     ? computeTotals(sel.flatMap((c) => c.lines), supplyType(orgState, sel[0]!.placeOfSupplyCode)) : null;
-  const allocs = totals && useAdv ? applyAdvancesOldestFirst(advQ.data ?? [], totals.grandTotal) : [];
+  const allocs = totals ? invoiceAdvanceAllocations(advQ.data ?? [], sel.map(c => c.soId), useAdv, totals.grandTotal) : [];
   const advTotal = allocs.reduce((a, b) => a + b.amount, 0);
   const problems = invoiceIssueProblems(sel, picked, date, todayIndia());
-  const canIssue = sel.length > 0 && !!orgState && !problems.length && !issuePendingAdvance(useAdv, advQ.isFetching);
+  const canIssue = sel.length > 0 && !!orgState && !problems.length && !advQ.isFetching;
 
   const issue = useMutation({
     mutationFn: () => api.issueInvoice({ challanIds: picked, date, applyAdvances: useAdv }),
@@ -133,7 +134,7 @@ function NewInvoice() {
                 {totals.igst ? <Row k="IGST" v={totals.igst} /> : <><Row k="CGST" v={totals.cgst} /><Row k="SGST" v={totals.sgst} /></>}
                 <Row k="Round off" v={totals.roundOff} />
                 <Row k="Invoice total" v={totals.grandTotal} bold />
-                <label className="flex items-center gap-2 border-t pt-3"><Checkbox checked={useAdv} onCheckedChange={(v) => setUseAdv(!!v)} /> Apply advances (oldest first)</label>
+                <p className="text-xs text-muted-foreground">Linked quotation advances apply automatically to their Sales Order; advances from other quotations are excluded.</p><label className="flex items-center gap-2 border-t pt-3"><Checkbox checked={useAdv} onCheckedChange={(v) => setUseAdv(!!v)} /> Apply general customer advances (oldest first)</label>
                 {allocs.map((a) => {
                   const adv = advQ.data?.find((x) => x.id === a.advanceId);
                   return <Row key={a.advanceId} k={`${adv?.receiptNo} · ${adv ? formatDate(adv.date) : ""}`} v={-a.amount} />;

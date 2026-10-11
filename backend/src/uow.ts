@@ -6,20 +6,21 @@
  */
 import type { Conn, Row } from "./db.js";
 import { bool, exec, newId, one, rows } from "./db.js";
+import { requireWarehouse, visibleDocument, warehouseIds } from "./access.js";
 import type { Ctx } from "./auth.js";
 import { ApiError } from "./errors.js";
 import { docNumber, fyLabel } from "./shared/numbering.js";
 import type {
-  Adjustment, Advance, Batch, Challan, DocType, Godown, Grn, Invoice, Item, LedgerEntry, Party, PurchaseOrder, Receipt, SalesOrder, Transfer,
+  Quotation, Adjustment, Advance, Batch, Challan, DocType, Godown, Grn, Invoice, Item, LedgerEntry, Party, PurchaseOrder, Receipt, SalesOrder, Transfer,
 } from "./shared/types.js";
 
 export const DOC_TABLES = {
-  salesOrders: "sales_orders", challans: "challans", invoices: "invoices", receipts: "receipts", advances: "advances",
+  quotations: "quotations", salesOrders: "sales_orders", challans: "challans", invoices: "invoices", receipts: "receipts", advances: "advances",
   pos: "purchase_orders", grns: "grns", transfers: "transfers", adjustments: "adjustments",
 } as const;
 export type DocKey = keyof typeof DOC_TABLES;
 export interface DocMap {
-  salesOrders: SalesOrder; challans: Challan; invoices: Invoice; receipts: Receipt; advances: Advance;
+  quotations: Quotation; salesOrders: SalesOrder; challans: Challan; invoices: Invoice; receipts: Receipt; advances: Advance;
   pos: PurchaseOrder; grns: Grn; transfers: Transfer; adjustments: Adjustment;
 }
 
@@ -54,7 +55,7 @@ export function rowToParty(r: Row): Party {
 }
 
 /** Loads complete Item objects (with stock and batches) for the given rows. */
-export async function hydrateItems(conn: Conn, itemRows: Row[], lock = false): Promise<Item[]> {
+export async function hydrateItems(conn: Conn, itemRows: Row[], lock = false, allowedGodowns?: string[]): Promise<Item[]> {
   if (!itemRows.length) return [];
   const ids = itemRows.map((r) => r["id"]);
   const sfx = lock ? " FOR UPDATE" : "";
@@ -64,8 +65,8 @@ export async function hydrateItems(conn: Conn, itemRows: Row[], lock = false): P
     id: r["id"], sku: r["sku"], name: r["name"], category: r["category"], brand: r["brand"], hsn: r["hsn"], gstRate: Number(r["gst_rate"]),
     baseUom: r["base_uom"], conversions: typeof r["conversions"] === "string" ? JSON.parse(r["conversions"]) : r["conversions"],
     salePrice: Number(r["sale_price"]), costPrice: Number(r["cost_price"]), allowNegative: bool(r["allow_negative"]), trackBatches: bool(r["track_batches"]), active: bool(r["active"]),
-    stock: st.filter((s) => s["item_id"] === r["id"]).map((s) => ({ godownId: s["godown_id"], onHand: Number(s["on_hand"]), held: Number(s["held"]), reorderLevel: Number(s["reorder_level"]), maxLevel: Number(s["max_level"]) })),
-    batches: bt.filter((b) => b["item_id"] === r["id"]).map((b) => {
+    stock: st.filter((s) => s["item_id"] === r["id"] && (allowedGodowns === undefined || allowedGodowns.includes(s["godown_id"]))).map((s) => ({ godownId: s["godown_id"], onHand: Number(s["on_hand"]), held: Number(s["held"]), reorderLevel: Number(s["reorder_level"]), maxLevel: Number(s["max_level"]) })),
+    batches: bt.filter((b) => b["item_id"] === r["id"] && (allowedGodowns === undefined || allowedGodowns.includes(b["godown_id"]))).map((b) => {
       const x: Batch = { id: b["id"], batchNo: b["batch_no"], godownId: b["godown_id"], qty: Number(b["qty"]), mfgDate: b["mfg_date"], receivedDate: b["received_date"] };
       if (b["expiry_date"]) x.expiryDate = b["expiry_date"];
       if (b["heat_no"]) x.heatNo = b["heat_no"];
@@ -114,7 +115,7 @@ export class Uow {
     if (c) return c;
     const r = await one(this.conn, `SELECT * FROM items WHERE org_id = ? AND id = ?${this.sfx}`, [this.ctx.orgId, id]);
     if (!r) throw new ApiError(404, "not_found", "Item not found");
-    const it = (await hydrateItems(this.conn, [r], this.lock))[0]!;
+    const it = (await hydrateItems(this.conn, [r], this.lock, warehouseIds(this.ctx)))[0]!;
     this.items.set(id, it);
     return it;
   }
@@ -133,17 +134,22 @@ export class Uow {
     this.dirtyParties.add(p.id);
   }
 
-  async godown(id: string): Promise<Godown | undefined> {
+  async godown(id: string, transferDestination = false): Promise<Godown | undefined> {
+    if (!transferDestination) requireWarehouse(this.ctx, id);
     const r = await one(this.conn, "SELECT * FROM godowns WHERE org_id = ? AND id = ?", [this.ctx.orgId, id]);
     return r ? rowToGodown(r) : undefined;
   }
 
   async doc<K extends DocKey>(key: K, id: string): Promise<DocMap[K] | undefined> {
     const c = this.docs.get(`${key}:${id}`);
-    if (c) return c.doc;
+    if (c) {
+      if (!visibleDocument(this.ctx, key, c.doc)) throw new ApiError(403, "warehouse_forbidden", "This document is outside your assigned warehouses");
+      return c.doc;
+    }
     const r = await one(this.conn, `SELECT body FROM ${DOC_TABLES[key]} WHERE org_id = ? AND id = ?${this.sfx}`, [this.ctx.orgId, id]);
     if (!r) return undefined;
     const doc = typeof r["body"] === "string" ? JSON.parse(r["body"]) : r["body"];
+    if (!visibleDocument(this.ctx, key, doc)) throw new ApiError(403, "warehouse_forbidden", "This document is outside your assigned warehouses");
     this.docs.set(`${key}:${id}`, { key, doc, dirty: false });
     return doc;
   }
@@ -158,7 +164,7 @@ export class Uow {
       const doc = typeof r["body"] === "string" ? JSON.parse(r["body"]) : r["body"];
       this.docs.set(k, { key, doc, dirty: false });
       return doc;
-    });
+    }).filter((doc) => visibleDocument(this.ctx, key, doc));
   }
 
   put<K extends DocKey>(key: K, doc: DocMap[K]) {
@@ -180,6 +186,15 @@ export class Uow {
     const seq = Number(c!["last_number"]) + 1;
     await exec(this.conn, "UPDATE doc_counters SET last_number = ? WHERE org_id = ? AND doc_type = ? AND fy = ?", [seq, this.ctx.orgId, docType, key]);
     return { seq, number: docNumber(s["prefix"], fy, seq, Number(s["padding"])) };
+  }
+
+  async nextQuotation(date: string): Promise<string> {
+    const fy = fyLabel(date);
+    await exec(this.conn, "INSERT IGNORE INTO quotation_counters (org_id, fy, last_number) VALUES (?,?,0)", [this.ctx.orgId, fy]);
+    const c = await one(this.conn, "SELECT last_number FROM quotation_counters WHERE org_id = ? AND fy = ? FOR UPDATE", [this.ctx.orgId, fy]);
+    const seq = Number(c!["last_number"]) + 1;
+    await exec(this.conn, "UPDATE quotation_counters SET last_number = ? WHERE org_id = ? AND fy = ?", [seq, this.ctx.orgId, fy]);
+    return docNumber("QT", fy, seq, 5);
   }
 
   async flush() {

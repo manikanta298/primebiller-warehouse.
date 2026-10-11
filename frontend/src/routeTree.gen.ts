@@ -21,6 +21,7 @@ import { Route as AuthenticatedNoAccessRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedNumberingRouteImport } from './routes/_authenticated/numbering'
 import { Route as AuthenticatedPartiesRouteImport } from './routes/_authenticated/parties'
 import { Route as AuthenticatedPrintProfilesRouteImport } from './routes/_authenticated/print-profiles'
+import { Route as AuthenticatedQuotationsRouteImport } from './routes/_authenticated/quotations'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated/search'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -113,6 +114,11 @@ const AuthenticatedPrintProfilesRoute =
     path: '/print-profiles',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedQuotationsRoute = AuthenticatedQuotationsRouteImport.update({
+  id: '/quotations',
+  path: '/quotations',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -302,6 +308,7 @@ export interface FileRoutesByFullPath {
   '/numbering': typeof AuthenticatedNumberingRoute
   '/parties': typeof AuthenticatedPartiesRouteWithChildren
   '/print-profiles': typeof AuthenticatedPrintProfilesRoute
+  '/quotations': typeof AuthenticatedQuotationsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -345,6 +352,7 @@ export interface FileRoutesByTo {
   '/no-access': typeof AuthenticatedNoAccessRoute
   '/numbering': typeof AuthenticatedNumberingRoute
   '/print-profiles': typeof AuthenticatedPrintProfilesRoute
+  '/quotations': typeof AuthenticatedQuotationsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -391,6 +399,7 @@ export interface FileRoutesById {
   '/_authenticated/numbering': typeof AuthenticatedNumberingRoute
   '/_authenticated/parties': typeof AuthenticatedPartiesRouteWithChildren
   '/_authenticated/print-profiles': typeof AuthenticatedPrintProfilesRoute
+  '/_authenticated/quotations': typeof AuthenticatedQuotationsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/search': typeof AuthenticatedSearchRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -437,6 +446,7 @@ export interface FileRouteTypes {
     | '/numbering'
     | '/parties'
     | '/print-profiles'
+    | '/quotations'
     | '/reports'
     | '/search'
     | '/settings'
@@ -480,6 +490,7 @@ export interface FileRouteTypes {
     | '/no-access'
     | '/numbering'
     | '/print-profiles'
+    | '/quotations'
     | '/reports'
     | '/search'
     | '/settings'
@@ -525,6 +536,7 @@ export interface FileRouteTypes {
     | '/_authenticated/numbering'
     | '/_authenticated/parties'
     | '/_authenticated/print-profiles'
+    | '/_authenticated/quotations'
     | '/_authenticated/reports'
     | '/_authenticated/search'
     | '/_authenticated/settings'
@@ -649,6 +661,13 @@ declare module '@tanstack/react-router' {
       path: '/print-profiles'
       fullPath: '/print-profiles'
       preLoaderRoute: typeof AuthenticatedPrintProfilesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/quotations': {
+      id: '/_authenticated/quotations'
+      path: '/quotations'
+      fullPath: '/quotations'
+      preLoaderRoute: typeof AuthenticatedQuotationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/reports': {
@@ -893,6 +912,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNumberingRoute: typeof AuthenticatedNumberingRoute
   AuthenticatedPartiesRoute: typeof AuthenticatedPartiesRouteWithChildren
   AuthenticatedPrintProfilesRoute: typeof AuthenticatedPrintProfilesRoute
+  AuthenticatedQuotationsRoute: typeof AuthenticatedQuotationsRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSearchRoute: typeof AuthenticatedSearchRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -933,6 +953,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNumberingRoute: AuthenticatedNumberingRoute,
   AuthenticatedPartiesRoute: AuthenticatedPartiesRouteWithChildren,
   AuthenticatedPrintProfilesRoute: AuthenticatedPrintProfilesRoute,
+  AuthenticatedQuotationsRoute: AuthenticatedQuotationsRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSearchRoute: AuthenticatedSearchRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
