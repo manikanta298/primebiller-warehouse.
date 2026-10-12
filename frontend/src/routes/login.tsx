@@ -10,6 +10,7 @@ import { getSession, setSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordOtpRecovery } from "@/components/password-otp-recovery";
 import { FirstAdminRegistration } from "@/components/first-admin-registration";
 
 export const Route = createFileRoute("/login")({
@@ -34,7 +35,6 @@ function LoginPage() {
   const navigate = useNavigate();
   const { redirect: back, reset: resetToken } = Route.useSearch();
   const [recover, setRecover] = useState(false);
-  const [recoverySent, setRecoverySent] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetComplete, setResetComplete] = useState(false);
@@ -59,11 +59,6 @@ function LoginPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const forgot = useMutation({
-    mutationFn: () => api.forgotPassword(email),
-    onSuccess: () => setRecoverySent(true),
-    onError: (e: Error) => toast.error(e.message),
-  });
   const resetPassword = useMutation({
     mutationFn: () => api.resetPassword(resetToken || "", newPassword),
     onSuccess: () => { setSession(null); setResetComplete(true); toast.success("Password updated"); },
@@ -132,29 +127,7 @@ function LoginPage() {
               </form>
             )
           ) : recover ? (
-            <div className="space-y-5">
-              {recoverySent ? (
-                <>
-                  <h1 className="text-2xl font-semibold tracking-tight">Check your email</h1>
-                  <p className="text-sm text-muted-foreground">If an active account exists for that address, a password reset link is on its way. It expires in one hour.</p>
-                </>
-              ) : (
-                <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); forgot.mutate(); }}>
-                  <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">Forgot password?</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Enter your Girder account email to receive a reset link.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="recovery-email">Email</Label>
-                    <Input id="recovery-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={forgot.isPending}>
-                    {forgot.isPending && <Loader2 className="animate-spin" />} Send reset link
-                  </Button>
-                </form>
-              )}
-              <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setRecover(false); setRecoverySent(false); }}>Back to sign in</button>
-            </div>
+            <PasswordOtpRecovery initialEmail={email} onBack={() => setRecover(false)} />
           ) : registering ? (
             <FirstAdminRegistration onSuccess={(res) => {
               const org = res.orgs[0];

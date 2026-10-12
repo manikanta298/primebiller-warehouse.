@@ -106,6 +106,14 @@ export async function sendPasswordResetEmail(recipient: string, link: string): P
   ].join("\r\n"));
 }
 
+export async function sendPasswordResetOtp(recipient: string, otp: string, requestId: string): Promise<void> {
+  if (config.mailDeliveryMode === "console") {
+    console.log("[PASSWORD RESET OTP]", JSON.stringify({ delivery: "console", email: cleanHeader(recipient), otp, requestId, expiresInMinutes: 10 }));
+    return;
+  }
+  await sendEmail(recipient, "Your Girder password reset OTP", `Your password reset OTP is: ${otp}\r\nIt expires in 10 minutes and can be used once.\r\nIf you did not request this, ignore this message.`);
+}
+
 export async function sendRegistrationEmail(recipient: string, name: string): Promise<void> {
   await sendEmail(recipient, "Welcome to Girder", [
     `Hello ${name},`, "", "Your account has been created as the organisation Owner (master admin).",

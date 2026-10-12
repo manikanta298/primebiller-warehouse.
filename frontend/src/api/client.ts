@@ -102,6 +102,14 @@ export const api = {
     usingMock
       ? Promise.reject(new ApiError(503, "demo_mode", "Password recovery requires the connected Express API."))
       : http("POST", "/auth/reset-password", { token, password }),
+  requestPasswordOtp: (email: string): Promise<{ message: string; requestId: string; expiresInSeconds: number; delivery: "console" | "smtp" }> =>
+    usingMock
+      ? Promise.reject(new ApiError(503, "demo_mode", "Password recovery requires the connected Express API."))
+      : http("POST", "/auth/forgot-password-otp", { email }),
+  resetPasswordOtp: (requestId: string, otp: string, password: string): Promise<{ message: string }> =>
+    usingMock
+      ? Promise.reject(new ApiError(503, "demo_mode", "Password recovery requires the connected Express API."))
+      : http("POST", "/auth/reset-password-otp", { requestId, otp, password }),
 
   listGodowns: (orgId: string): Promise<Godown[]> =>
     usingMock ? mock.listGodowns(orgId) : http("GET", `/orgs/${orgId}/godowns`),

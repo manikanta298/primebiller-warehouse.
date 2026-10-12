@@ -13,7 +13,7 @@ test('migration preserves one connection for metadata variables and prepared DDL
  const prepare=calls.findIndex(s=>s.startsWith('PREPARE'));
  assert.ok(prepare>2);assert.ok(calls[prepare+1].startsWith('EXECUTE'));assert.ok(calls[prepare+2].startsWith('DEALLOCATE'));
  const main=schemaStatements(readFileSync(new URL('../db/schema.sql',import.meta.url),'utf8'));
- assert.deepEqual(main.filter(s=>/^SET @audit_|^(?:PREPARE|EXECUTE|DEALLOCATE)/.test(s)),statements.slice(0,6));
+ assert.deepEqual(main.filter(s=>/^SET @audit_|^(?:PREPARE|EXECUTE|DEALLOCATE PREPARE) audit_create_statement/.test(s)),statements.slice(0,6));
  assert.ok(!statements.some(s=>/FOREIGN_KEY_CHECKS\s*=\s*0|ALTER TABLE|DROP TABLE/i.test(s)));
 });
 
