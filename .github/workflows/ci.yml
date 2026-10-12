@@ -37,6 +37,20 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: migration-test-password
+          MYSQL_ROOT_HOST: '%'
+          MYSQL_DATABASE: migration_tests
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -pmigration-test-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         working-directory: backend
@@ -51,8 +65,10 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Typecheck and compile
         run: npm run build
-      - name: Registration and password recovery tests
+      - name: Backend and MySQL migration tests
         run: npm test
+        env:
+          MYSQL_MIGRATION_TEST_URL: mysql://root:migration-test-password@127.0.0.1:3306/migration_tests
 
   deployment:
     name: Deployment scripts
