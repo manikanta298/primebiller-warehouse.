@@ -6,8 +6,8 @@ import { ApiError } from "../errors.js";
 import { parseSnapshot, snapshotHash } from "../invoice-audit.js";
 
 export const invoiceAuditRouter = Router();
-invoiceAuditRouter.get("/invoices/:id/audit", h(req => {
-  if (!["Owner","Manager","Accountant"].includes(req.ctx.role)) throw new ApiError(403,"forbidden","Your role cannot audit invoices");
+export const invoiceAuditHandler = h(req => {
+  if (!["Owner","Manager","Accountant","Chartered Accountant"].includes(req.ctx.role)) throw new ApiError(403,"forbidden","Your role cannot audit invoices");
   const query = z.object({
     after: z.string().regex(/^\d{1,20}$/).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -25,4 +25,5 @@ invoiceAuditRouter.get("/invoices/:id/audit", h(req => {
       nextCursor: more ? String(page[page.length-1]!["id"]) : null,
       coverage: "Events recorded after this feature was deployed; baseline events are migration-time snapshots, not original issuance history" };
   });
-}));
+});
+invoiceAuditRouter.get("/invoices/:id/audit", invoiceAuditHandler);

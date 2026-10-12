@@ -5,7 +5,7 @@ import { Building2, ChevronRight, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { api, usingMock } from "@/api/client";
-import type { LoginResponse } from "@/api/types";
+import { CA_ROLE, type LoginResponse } from "@/api/types";
 import { getSession, setSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/login")({
   validateSearch: z.object({ redirect: z.string().optional(), reset: z.string().optional() }),
   beforeLoad: ({ search }) => {
     const s = getSession();
-    if (s?.orgId && !search.reset) throw redirect({ to: "/dashboard" });
+    if (s?.orgId && !search.reset) throw redirect({ to: s.user.role === CA_ROLE ? "/ca" : "/dashboard" });
   },
   head: () => ({
     meta: [
@@ -66,9 +66,11 @@ function LoginPage() {
   });
 
   function choose(res: LoginResponse, orgId: string) {
-    setSession({ token: res.token, user: res.user, orgs: res.orgs, orgId, godownId: "all" });
+    const role = res.orgs.find(o => o.id === orgId)?.role ?? res.user.role;
+    setSession({ token: res.token, user: { ...res.user, role }, orgs: res.orgs, orgId, godownId: "all" });
     toast.success(`Welcome, ${res.user.name}`);
-    if (back && back.startsWith("/") && !back.startsWith("/login")) navigate({ to: back, replace: true });
+    if (role === CA_ROLE) navigate({ to: "/ca", replace: true });
+    else if (back && back.startsWith("/") && !back.startsWith("/login")) navigate({ to: back, replace: true });
     else navigate({ to: "/dashboard", replace: true });
   }
 

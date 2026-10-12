@@ -140,7 +140,7 @@ export function gstr1Json(g: Gstr1) {
 }
 
 /** One well-formed CSV with an explicit section column (never a multi-CSV concatenation). */
-export function gstr1Csv(g: Gstr1): string {
+export function gstr1Rows(g: Gstr1): Record<string, unknown>[] {
   type Row = Record<string, string | number> & { section: string; invoice: string; date: string; gstin: string; pos: string; hsn: string; uom: string; qty: number | string; rate: number | string; taxable: number | string; igst: number | string; cgst: number | string; sgst: number | string; detail: string };
   const row = (v: Partial<Row>): Row => ({ section: "", invoice: "", date: "", gstin: "", pos: "", hsn: "", uom: "", qty: "", rate: "", taxable: "", igst: "", cgst: "", sgst: "", detail: "", ...v });
   const rows: Row[] = [
@@ -150,8 +150,10 @@ export function gstr1Csv(g: Gstr1): string {
     ...g.hsn.map((r) => row({ section: r.recipient === "b2b" ? "HSN B2B" : "HSN B2C", hsn: r.hsn, uom: r.uom, qty: r.qty, rate: r.rate, taxable: r.taxable, igst: r.igst, cgst: r.cgst, sgst: r.sgst })),
     ...g.docs.map((r) => row({ section: "DOCUMENTS", detail: `${r.nature}: ${r.from} to ${r.to}; issued ${r.total}; cancelled ${r.cancelled}` })),
   ];
-  return toCsv(rows);
+  return rows;
 }
+
+export function gstr1Csv(g: Gstr1): string { return toCsv(gstr1Rows(g)); }
 
 /** Escape CSV including values which spreadsheets might evaluate as formulas. */
 export function toCsv(rows: Record<string, unknown>[]): string {

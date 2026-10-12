@@ -53,7 +53,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       : await one(pool, "SELECT ur.role, o.id, o.state_code, o.gstin FROM user_roles ur JOIN orgs o ON o.id = ur.org_id WHERE ur.user_id = ? ORDER BY o.name LIMIT 1", [u["id"]]);
     if (!r) throw new ApiError(403, "no_org_access", "You don't have access to this organisation");
     req.ctx = { userId: u["id"], userName: u["name"], role: r["role"], orgId: r["id"], orgStateCode: r["state_code"], orgGstin: r["gstin"] };
-    if (!["Owner", "Manager", "Accountant"].includes(req.ctx.role)) {
+    if (!["Owner", "Manager", "Accountant", "Chartered Accountant"].includes(req.ctx.role)) {
       req.ctx.godownIds = (await rows(pool, `SELECT g.id FROM user_godowns ug
         JOIN godowns g ON g.id = ug.godown_id
         WHERE ug.user_id = ? AND g.org_id = ? AND g.active = 1`, [req.ctx.userId, req.ctx.orgId])).map((g) => String(g["id"]));

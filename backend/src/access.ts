@@ -1,12 +1,13 @@
 import type { RequestHandler } from "express";
 import type { Ctx } from "./auth.js";
 import { ApiError } from "./errors.js";
+import { isReadOnlyRole } from "./shared/permissions.js";
 import type { Role } from "./shared/types.js";
 
 // Owner/Manager administer the organisation; Accountant has organisation-wide finance access.
 // Operational staff fail closed when no active warehouses have been assigned.
 export function warehouseIds(ctx: Ctx): string[] | undefined {
-  return ["Owner", "Manager", "Accountant"].includes(ctx.role) ? undefined : (ctx.godownIds ?? []);
+  return ["Owner", "Manager", "Accountant", "Chartered Accountant"].includes(ctx.role) ? undefined : (ctx.godownIds ?? []);
 }
 export function canUseWarehouse(ctx: Ctx, id: string): boolean {
   const ids = warehouseIds(ctx);
@@ -23,6 +24,7 @@ export function visibleDocument(ctx: Ctx, key: string, doc: any): boolean {
 }
 
 const READ_ROLES: [RegExp, Role[]][] = [
+  [/^\/ca(?:\/|$)/, ["Owner", "Manager", "Accountant", "Chartered Accountant"]],
   [/^\/users(?:\/|$)/, ["Owner"]],
   [/^\/settings\/numbering(?:\/|$)/, ["Owner"]],
   [/^\/settings$/, ["Owner", "Manager", "Accountant", "Storekeeper", "Driver"]],
@@ -50,4 +52,13 @@ export const enforceReadAccess: RequestHandler = (req, _res, next) => {
     }
     next();
   } catch (error) { next(error); }
+};
+
+/** Read-only CA accounts cannot mutate any authenticated business endpoint. */
+export const enforceCaReadOnly: RequestHandler = (req, _res, next) => {
+  if (isReadOnlyRole(req.ctx.role) && !["GET", "HEAD"].includes(req.method)) {
+    next(new ApiError(403, "ca_read_only", "Chartered Accountant accounts have read-only access"));
+    return;
+  }
+  next();
 };

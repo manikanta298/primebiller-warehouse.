@@ -1,5 +1,6 @@
-export type Role = "Owner" | "Manager" | "Storekeeper" | "Sales" | "Accountant" | "Driver";
-export const ROLES: Role[] = ["Owner", "Manager", "Storekeeper", "Sales", "Accountant", "Driver"];
+export const CA_ROLE = "Chartered Accountant" as const;
+export type Role = "Owner" | "Manager" | "Storekeeper" | "Sales" | "Accountant" | "Driver" | typeof CA_ROLE;
+export const ROLES: Role[] = ["Owner", "Manager", "Storekeeper", "Sales", "Accountant", "Driver", CA_ROLE];
 
 export interface User {
   id: string;
@@ -9,6 +10,7 @@ export interface User {
 }
 
 export interface Org {
+  role?: Role;
   id: string;
   name: string;
   gstin: string;

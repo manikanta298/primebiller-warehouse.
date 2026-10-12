@@ -27,6 +27,8 @@ import { getSession, setSession } from "@/lib/session";
 import type { ItemEditPatch } from "@/lib/item-detail-rules";
 
 export { ApiError };
+export interface CaExport { filename: string; mimeType: string; content: string; sha256: string; metadata: { orgId: string; period: string; status: string } }
+export interface CaRecordRow { id: string; label: string | null; number: string | null; date: string | null; status: string | null; total: number | null }
 
 export interface FirstAdminRegistrationInput {
   orgName?: string;
@@ -68,6 +70,12 @@ const qs = (o: Record<string, string | undefined>) => {
   return s ? `?${s}` : "";
 };
 
+function caHttp<T>(path: string, orgId: string): Promise<T> {
+  if (getSession()?.orgId !== orgId) return Promise.reject(new ApiError(409, "organisation_changed", "Organisation changed. Refresh the CA workspace."));
+  if (usingMock) return Promise.reject(new ApiError(503, "demo_mode", "The CA workspace requires the connected Express API."));
+  return http("GET", path);
+}
+
 async function fileToBase64(f: File): Promise<string> {
   const b = new Uint8Array(await f.arrayBuffer());
   let s = "";
@@ -76,6 +84,11 @@ async function fileToBase64(f: File): Promise<string> {
 }
 
 export const api = {
+  caOverview: (orgId: string) => caHttp<{orgId:string;role:string;readOnly:boolean;counts:Record<string,number>}>("/ca/overview",orgId),
+  caRecords: (orgId: string, collection: string, after?: string) => caHttp<{collection:string;records:CaRecordRow[];nextCursor:string|null}>(`/ca/records/${encodeURIComponent(collection)}${qs({after})}`,orgId),
+  caRecord: (orgId: string, collection: string, id: string) => caHttp<{collection:string;record:Record<string,unknown>}>(`/ca/records/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`,orgId),
+  caInvoiceAudit: (orgId: string, id: string, after?: string) => caHttp<{events:Record<string,unknown>[];nextCursor:string|null;coverage:string}>(`/ca/invoices/${encodeURIComponent(id)}/audit${qs({after})}`,orgId),
+  caExport: (orgId: string, report: "gstr1"|"gstr3b"|"sales", period: string, format: "csv"|"json") => caHttp<CaExport>(`/ca/reports/${report}/export${qs({period,format})}`,orgId),
   firstAdminStatus: (): Promise<{ available: boolean }> =>
     usingMock ? Promise.resolve({ available: false }) : http("GET", "/auth/setup-status"),
   registerFirstAdmin: (input: FirstAdminRegistrationInput): Promise<LoginResponse> =>

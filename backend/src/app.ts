@@ -2,12 +2,13 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { config } from "./config.js";
-import { enforceReadAccess } from "./access.js";
+import { enforceCaReadOnly, enforceReadAccess } from "./access.js";
 import { requireAuth } from "./auth.js";
 import { errorHandler } from "./errors.js";
 import { authRouter } from "./routes/auth.js";
 import { passwordOtpRouter } from "./routes/password-otp.js";
 import { recordDeleteRouter } from "./routes/record-delete.js";
+import { caRouter } from "./routes/ca.js";
 import { coreRouter } from "./routes/core.js";
 import { quotationRouter } from "./routes/quotations.js";
 import { invoiceAuditRouter } from "./routes/invoice-audit.js";
@@ -57,7 +58,9 @@ export function createApp() {
   v1.use("/auth", authRouter);
   v1.use("/auth", passwordOtpRouter);
   v1.use(requireAuth); // everything below needs a valid token
+  v1.use(enforceCaReadOnly);
   v1.use(enforceReadAccess);
+  v1.use("/ca", caRouter);
   v1.use(recordDeleteRouter);
   v1.use(coreRouter);
   v1.use(quotationRouter);

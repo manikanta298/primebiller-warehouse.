@@ -1,5 +1,6 @@
 /** Stage 19 administration invariants; mirrored into Express by sync-shared. */
-import type { AppUser, AppUserInput, OrgSettingsInput } from "@/api/types";
+import { CA_ROLE, ROLES } from "../api/types.ts";
+import type { AppUser, AppUserInput, OrgSettingsInput } from "../api/types.ts";
 import { isValidGstin, stateFromGstin } from "./gst.ts";
 
 export function usersForOrg<T extends { id: string }>(users: T[], memberships: Record<string, string[]>, orgId: string): T[] {
@@ -16,10 +17,10 @@ export function userProblems(
   if (!input.name.trim() || input.name.trim().length > 120) p.push("Name is required (maximum 120 characters)");
   if (input.email.length > 190 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim())) p.push("Enter a valid email address");
   if (input.mobile.trim() && !/^\d{10}$/.test(input.mobile.replace(/\D/g, ""))) p.push("Mobile must contain 10 digits, or be left blank");
-  if (!["Owner", "Manager", "Storekeeper", "Sales", "Accountant", "Driver"].includes(input.role)) p.push("Choose a valid role");
-  if (!input.godownIds.length || new Set(input.godownIds).size !== input.godownIds.length || input.godownIds.some((id) => !godownIds.includes(id)))
+  if (!ROLES.includes(input.role)) p.push("Choose a valid role");
+  if ((input.role !== CA_ROLE && !input.godownIds.length) || new Set(input.godownIds).size !== input.godownIds.length || input.godownIds.some((id) => !godownIds.includes(id)))
     p.push("Choose at least one valid warehouse without duplicates");
-  if (input.id === selfId && (input.role !== "Owner" || !input.active)) p.push("You cannot remove your own Owner access");
+  if (selfId && input.id === selfId && (input.role !== "Owner" || !input.active)) p.push("You cannot remove your own Owner access");
   const before = orgUsers.find((u) => u.id === input.id);
   if (before?.role === "Owner" && before.active && (!input.active || input.role !== "Owner") &&
       !orgUsers.some((u) => u.id !== input.id && u.role === "Owner" && u.active))

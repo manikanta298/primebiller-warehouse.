@@ -139,9 +139,9 @@ function UserSheet({ value, onClose }: { value: AppUserInput | null; onClose: ()
           <Field label="Email" hint={f.id ? undefined : "You'll get a link to send them so they can set their own password."}><Input type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
           <Field label="Mobile"><Input className="num" value={f.mobile} onChange={(e) => set({ mobile: e.target.value })} /></Field>
           <Field label="Role" hint={f.id ? "Changing the role signs them out everywhere." : undefined}>
-            <NativeSelect value={f.role} onChange={(e) => set({ role: e.target.value as Role })}>{ROLES.map((r) => <option key={r}>{r}</option>)}</NativeSelect>
+            <NativeSelect value={f.role} onChange={(e) => set({ role: e.target.value as Role, ...(e.target.value === "Chartered Accountant" ? { godownIds: [] } : {}) })}>{ROLES.map((r) => <option key={r}>{r}</option>)}</NativeSelect>
           </Field>
-          <Field label="Godowns they can work in">
+          {f.role === "Chartered Accountant" ? <p className="text-sm text-muted-foreground">Read-only access to all warehouses and business records in this organisation.</p> : <Field label="Godowns they can work in">
             <div className="space-y-2 rounded-md border p-3">
               {godowns.data?.map((g) => (
                 <label key={g.id} className="flex items-center gap-2 text-sm">
@@ -150,7 +150,7 @@ function UserSheet({ value, onClose }: { value: AppUserInput | null; onClose: ()
                 </label>
               ))}
             </div>
-          </Field>
+          </Field>}
           {f.id && <label className="flex items-center justify-between text-sm">Active (switch off instead of deleting) <Switch checked={f.active} onCheckedChange={(v) => set({ active: v })} /></label>}
           {problems.length > 0 && <p className="text-sm text-destructive" role="alert">{problems[0]}</p>}
           <div className="flex gap-2"><Button type="button" variant="outline" onClick={close}>Cancel</Button>

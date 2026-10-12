@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Org, Role, User } from "@/api/types";
+import { CA_ROLE, type Org, type Role, type User } from "@/api/types";
 
 export interface Session {
   token: string;
@@ -50,6 +50,7 @@ export function useSession(): Session | null {
 
 /** Route prefix → roles allowed. Paths not listed are open to every signed-in role. */
 export const ROUTE_ROLES: { prefix: string; roles: Role[] }[] = [
+  { prefix: "/ca", roles: ["Owner", "Manager", "Accountant", CA_ROLE] },
   { prefix: "/users", roles: ["Owner"] },
   { prefix: "/settings", roles: ["Owner"] },
   { prefix: "/numbering", roles: ["Owner"] },
@@ -74,6 +75,7 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[] }[] = [
 ];
 
 export function canAccess(role: Role, pathname: string): boolean {
+  if (role === CA_ROLE) return pathname === "/no-access" || pathname === "/ca" || pathname.startsWith("/ca/");
   const rule = ROUTE_ROLES.find((r) => pathname === r.prefix || pathname.startsWith(r.prefix + "/"));
   return !rule || rule.roles.includes(role);
 }

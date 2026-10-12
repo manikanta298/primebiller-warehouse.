@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
+import { Route as AuthenticatedCaRouteImport } from './routes/_authenticated/ca'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedImportRouteImport } from './routes/_authenticated/import'
 import { Route as AuthenticatedMastersRouteImport } from './routes/_authenticated/masters'
@@ -76,6 +77,11 @@ const LoginRoute = LoginRouteImport.update({
 const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCaRoute = AuthenticatedCaRouteImport.update({
+  id: '/ca',
+  path: '/ca',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -301,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/accept-invite': typeof AcceptInviteRoute
   '/login': typeof LoginRoute
   '/alerts': typeof AuthenticatedAlertsRoute
+  '/ca': typeof AuthenticatedCaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/import': typeof AuthenticatedImportRoute
   '/masters': typeof AuthenticatedMastersRoute
@@ -346,6 +353,7 @@ export interface FileRoutesByTo {
   '/accept-invite': typeof AcceptInviteRoute
   '/login': typeof LoginRoute
   '/alerts': typeof AuthenticatedAlertsRoute
+  '/ca': typeof AuthenticatedCaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/import': typeof AuthenticatedImportRoute
   '/masters': typeof AuthenticatedMastersRoute
@@ -392,6 +400,7 @@ export interface FileRoutesById {
   '/accept-invite': typeof AcceptInviteRoute
   '/login': typeof LoginRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
+  '/_authenticated/ca': typeof AuthenticatedCaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/import': typeof AuthenticatedImportRoute
   '/_authenticated/masters': typeof AuthenticatedMastersRoute
@@ -439,6 +448,7 @@ export interface FileRouteTypes {
     | '/accept-invite'
     | '/login'
     | '/alerts'
+    | '/ca'
     | '/dashboard'
     | '/import'
     | '/masters'
@@ -484,6 +494,7 @@ export interface FileRouteTypes {
     | '/accept-invite'
     | '/login'
     | '/alerts'
+    | '/ca'
     | '/dashboard'
     | '/import'
     | '/masters'
@@ -529,6 +540,7 @@ export interface FileRouteTypes {
     | '/accept-invite'
     | '/login'
     | '/_authenticated/alerts'
+    | '/_authenticated/ca'
     | '/_authenticated/dashboard'
     | '/_authenticated/import'
     | '/_authenticated/masters'
@@ -612,6 +624,13 @@ declare module '@tanstack/react-router' {
       path: '/alerts'
       fullPath: '/alerts'
       preLoaderRoute: typeof AuthenticatedAlertsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/ca': {
+      id: '/_authenticated/ca'
+      path: '/ca'
+      fullPath: '/ca'
+      preLoaderRoute: typeof AuthenticatedCaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/dashboard': {
@@ -905,6 +924,7 @@ const AuthenticatedPartiesRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
+  AuthenticatedCaRoute: typeof AuthenticatedCaRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedImportRoute: typeof AuthenticatedImportRoute
   AuthenticatedMastersRoute: typeof AuthenticatedMastersRoute
@@ -946,6 +966,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
+  AuthenticatedCaRoute: AuthenticatedCaRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedImportRoute: AuthenticatedImportRoute,
   AuthenticatedMastersRoute: AuthenticatedMastersRoute,

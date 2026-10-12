@@ -1,0 +1,32 @@
+import type {Invoice} from "@/api/types";
+import {inPeriod,toCsv} from "./reports.ts";
+
+export function buildGstr3bWorkpaper(all:Invoice[],period:string){
+  const documents=all.filter(i=>inPeriod(i.date,period)),live=documents.filter(i=>i.status!=="cancelled");
+  const money=(n:number)=>Math.round(n*100)/100;
+  const outward={taxable:0,cgst:0,sgst:0,igst:0};let unclassifiedZeroRateTaxable=0;
+  const interstate=new Map<string,{placeOfSupply:string;taxable:number;igst:number}>();
+  for(const i of live){
+    const taxable=i.byRate.filter(r=>r.rate>0).reduce((s,r)=>s+r.taxable,0);
+    unclassifiedZeroRateTaxable=money(unclassifiedZeroRateTaxable+i.byRate.filter(r=>r.rate===0).reduce((s,r)=>s+r.taxable,0));
+    outward.taxable=money(outward.taxable+taxable);outward.cgst=money(outward.cgst+i.cgst);outward.sgst=money(outward.sgst+i.sgst);outward.igst=money(outward.igst+i.igst);
+    if(i.supply==="inter"&&!i.gstin?.trim()){
+      const row=interstate.get(i.placeOfSupplyCode)??{placeOfSupply:i.placeOfSupplyCode,taxable:0,igst:0};row.taxable=money(row.taxable+taxable);row.igst=money(row.igst+i.igst);interstate.set(i.placeOfSupplyCode,row);
+    }
+  }
+  return {period,status:"DRAFT_WORKPAPER",invoiceCount:live.length,cancelledCount:documents.length-live.length,
+    outwardTaxableFromBooks:outward,interstateUnregisteredFromBooks:[...interstate.values()],unclassifiedZeroRateTaxable,
+    pendingReview:{zeroRated:null,nilRatedExempt:null,nonGst:null,reverseCharge:null,eligibleItc:null,itcReversals:null,itcReclaims:null,cess:null,taxPayments:null,interest:null},
+    limitations:["Supporting book summary only; not a complete or upload-ready GSTR-3B return.","ITC requires purchase/GSTR-2B reconciliation and eligibility review; GRN tax is not treated as eligible ITC.","Zero-rate lines require classification; they are not automatically marked exempt, nil-rated, non-GST or zero-rated.","Credit/debit notes, amendments, RCM, exports/SEZ and portal adjustments require separate review."]};
+}
+
+export function gstr3bWorkpaperRows(report:ReturnType<typeof buildGstr3bWorkpaper>){
+  const value=report.outwardTaxableFromBooks;
+  const rows:Record<string,unknown>[]=[{section:"OUTWARD_TAXABLE_BOOKS",placeOfSupply:"",taxable:value.taxable,cgst:value.cgst,sgst:value.sgst,igst:value.igst,status:report.status,note:"Review against GSTR-3B 3.1(a); pending sections are not zero"},
+    ...report.interstateUnregisteredFromBooks.map(r=>({section:"INTERSTATE_UNREGISTERED_BOOKS",placeOfSupply:r.placeOfSupply,taxable:r.taxable,cgst:"",sgst:"",igst:r.igst,status:"REVIEW",note:"Supporting 3.2 review"})),
+    {section:"UNCLASSIFIED_ZERO_RATE",placeOfSupply:"",taxable:report.unclassifiedZeroRateTaxable,cgst:"",sgst:"",igst:"",status:"PENDING_REVIEW",note:"Classify before filing"},
+    ...Object.keys(report.pendingReview).map(k=>({section:k,placeOfSupply:"",taxable:"",cgst:"",sgst:"",igst:"",status:"PENDING_REVIEW",note:"Not determined from current books"}))];
+  return rows;
+}
+
+export function gstr3bWorkpaperCsv(report:ReturnType<typeof buildGstr3bWorkpaper>){return toCsv(gstr3bWorkpaperRows(report));}
