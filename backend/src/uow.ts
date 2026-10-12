@@ -4,12 +4,13 @@
  * writes every change back in flush(). Keeps the business code close to the frontend
  * demo layer so both behave the same.
  */
+import { prepareInvoiceAudit, appendInvoiceAudit } from "./invoice-audit.js";
 import type { Conn, Row } from "./db.js";
 import { bool, exec, newId, one, rows } from "./db.js";
 import { requireWarehouse, visibleDocument, warehouseIds } from "./access.js";
 import type { Ctx } from "./auth.js";
 import { ApiError } from "./errors.js";
-import { docNumber, fyLabel } from "./shared/numbering.js";
+import { docNumber, fyLabel, invoiceNumberProblems } from "./shared/numbering.js";
 import type {
   Quotation, Adjustment, Advance, Batch, Challan, DocType, Godown, Grn, Invoice, Item, LedgerEntry, Party, PurchaseOrder, Receipt, SalesOrder, Transfer,
 } from "./shared/types.js";
@@ -175,7 +176,7 @@ export class Uow {
     this.ledgerRows.push(e);
   }
 
-  /** Next document number. Row-locks the counter so concurrent posts can never share or skip a number. */
+  /** Allocate inside the posting transaction. Committed/cancelled numbers are never reused. */
   async next(docType: DocType, date: string): Promise<{ seq: number; number: string }> {
     const s = await one(this.conn, "SELECT prefix, padding, reset_per_fy FROM doc_series WHERE org_id = ? AND doc_type = ? FOR UPDATE", [this.ctx.orgId, docType]);
     if (!s) throw new ApiError(500, "no_series", `Numbering for ${docType} is not set up`);
@@ -184,8 +185,12 @@ export class Uow {
     await exec(this.conn, "INSERT IGNORE INTO doc_counters (org_id, doc_type, fy, last_number) VALUES (?,?,?,0)", [this.ctx.orgId, docType, key]);
     const c = await one(this.conn, "SELECT last_number FROM doc_counters WHERE org_id = ? AND doc_type = ? AND fy = ? FOR UPDATE", [this.ctx.orgId, docType, key]);
     const seq = Number(c!["last_number"]) + 1;
+    const number = docNumber(s["prefix"], fy, seq, Number(s["padding"]));
+    if (!Number.isSafeInteger(seq) || seq < 1) throw new ApiError(409, "numbering_exhausted", "Numbering counter is invalid or exhausted");
+    if (docType === "INV" && invoiceNumberProblems(number).length)
+      throw new ApiError(422, "invalid_invoice_number", invoiceNumberProblems(number)[0]!);
     await exec(this.conn, "UPDATE doc_counters SET last_number = ? WHERE org_id = ? AND doc_type = ? AND fy = ?", [seq, this.ctx.orgId, docType, key]);
-    return { seq, number: docNumber(s["prefix"], fy, seq, Number(s["padding"])) };
+    return { seq, number };
   }
 
   async nextQuotation(date: string): Promise<string> {
@@ -206,11 +211,13 @@ export class Uow {
     }
     for (const { key, doc, dirty } of this.docs.values()) {
       if (!dirty) continue;
+      const audit = key === "invoices" ? await prepareInvoiceAudit(this.conn, this.ctx, doc) : undefined;
       const h = head(key, doc);
       await exec(this.conn,
         `INSERT INTO ${DOC_TABLES[key]} (id, org_id, number, doc_date, party_id, status, total, body) VALUES (?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE number=VALUES(number), doc_date=VALUES(doc_date), party_id=VALUES(party_id), status=VALUES(status), total=VALUES(total), body=VALUES(body)`,
         [doc.id, this.ctx.orgId, h.number, h.date, h.party, h.status, h.total, JSON.stringify(doc)]);
+      if (audit) await appendInvoiceAudit(this.conn, this.ctx, doc, audit);
     }
     for (const e of this.ledgerRows) {
       await exec(this.conn,

@@ -9,6 +9,7 @@ import { authRouter } from "./routes/auth.js";
 import { recordDeleteRouter } from "./routes/record-delete.js";
 import { coreRouter } from "./routes/core.js";
 import { quotationRouter } from "./routes/quotations.js";
+import { invoiceAuditRouter } from "./routes/invoice-audit.js";
 import { salesRouter } from "./routes/sales.js";
 import { inventoryRouter } from "./routes/inventory.js";
 import { adminRouter } from "./routes/admin.js";
@@ -56,6 +57,7 @@ export function createApp() {
   v1.use(recordDeleteRouter);
   v1.use(coreRouter);
   v1.use(quotationRouter);
+  v1.use(invoiceAuditRouter);
   v1.use(salesRouter);
   v1.use(inventoryRouter);
   v1.use(adminRouter);
