@@ -4,6 +4,8 @@ This change adds invoice-number validation and transactional audit history to th
 
 ## Database migration and deployment
 
+The corrected DDL reads `information_schema.COLUMNS` and copies the actual ID type, character set and collation from `orgs.id` and `invoices.id`. This avoids error 3780 when an older table's collation differs from the current database default. Parent tables are not altered and both foreign keys remain enforced. Run the complete SQL file in one session; its SET/PREPARE/EXECUTE statements must not be split across separate submissions. The backend migration runner now reserves one connection for the full script.
+
 1. Back up the existing database using your normal backup procedure.
 2. In phpMyAdmin select the existing application database, then run `backend/db/migrations/20261012-invoice-audit.sql`. It creates one new table and optionally records the current state of historical invoices. It does not update invoice numbers, invoice bodies, stock, balances or counters.
 3. Deploy the backend. `npm --prefix backend run db:migrate` also creates the audit table through the main schema; the standalone migration additionally seeds historical baselines. The audit table must exist before invoice writes run.
