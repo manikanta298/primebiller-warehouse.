@@ -38,6 +38,7 @@ test('quotation HTTP lifecycle: stock unchanged, accepted once, advances linked,
     }
     if (sql.startsWith('INSERT INTO item_stock')) { stockWrites.push(p); return [{}, []]; }
     if (sql.startsWith('INSERT INTO items')) return [{}, []];
+    if (sql.startsWith('INSERT INTO invoice_audit_events')) return [{}, []];
     if (sql.startsWith('INSERT INTO stock_ledger')) { ledgerWrites++; return [{}, []]; }
     if (sql.startsWith('UPDATE parties')) { party.outstanding = p[0]; return [{}, []]; }
     if (sql.startsWith('INSERT INTO ')) { const table = sql.match(/INSERT INTO (\w+)/)[1]; docs.set(table + ':' + p[0], JSON.parse(p[7])); return [{}, []]; }

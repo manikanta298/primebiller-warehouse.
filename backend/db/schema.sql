@@ -192,6 +192,26 @@ CREATE TABLE IF NOT EXISTS sales_orders (
 ) ENGINE=InnoDB;
 CREATE TABLE IF NOT EXISTS challans LIKE sales_orders;
 CREATE TABLE IF NOT EXISTS invoices LIKE sales_orders;
+
+-- Append-only through the application; no UPDATE/DELETE API.
+CREATE TABLE IF NOT EXISTS invoice_audit_events (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  org_id VARCHAR(40) NOT NULL,
+  invoice_id VARCHAR(40) NOT NULL,
+  event_type ENUM('baseline','issued','settlement_updated','cancelled') NOT NULL,
+  actor_id VARCHAR(40) NULL,
+  actor_name VARCHAR(120) NOT NULL,
+  before_snapshot JSON NULL,
+  after_snapshot JSON NOT NULL,
+  snapshot_sha256 CHAR(64) NULL,
+  baseline_invoice_id VARCHAR(40) NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uq_invoice_audit_baseline (baseline_invoice_id),
+  KEY ix_invoice_audit (org_id, invoice_id, id),
+  CONSTRAINT fk_invoice_audit_org FOREIGN KEY (org_id) REFERENCES orgs(id),
+  CONSTRAINT fk_invoice_audit_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS receipts LIKE sales_orders;
 -- Advances carry no unique document number.
 CREATE TABLE IF NOT EXISTS advances (

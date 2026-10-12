@@ -36,7 +36,7 @@ import { quotationProblems, quotationActionProblem, quotationPaymentProblem, inv
 import { fyLabel } from "@/lib/numbering";
 import { orderCustomerEligible, orderDraftProblems, stockHoldProblems, salesOrdersForOrg } from "@/lib/sales-order-rules";
 import { can } from "@/lib/permissions";
-import { docNumber, seriesProblems } from "@/lib/numbering";
+import { docNumber, seriesProblems, invoiceNumberProblems } from "@/lib/numbering";
 import { usersForOrg, userProblems, normaliseUserInput, settingsProblems } from "@/lib/admin-rules";
 import { buildGstr1, salesRegister as buildSalesRegister, receivables as buildReceivables, itemSales as buildItemSales, validReportMonth, validReportRange } from "@/lib/reports";
 import { filterDocs } from "@/lib/search-rules";
@@ -1743,9 +1743,11 @@ function fmtNo(t: DocType, seq: number): string {
   if (orgId !== "org1") {
     const counters = s.issuedByOrg[orgId] ?? (s.issuedByOrg[orgId] = {});
     seq = (counters[t] ?? 0) + 1;
-    counters[t] = seq;
   }
-  return docNumber(c.prefix, "26-27", seq, c.padding);
+  const number = docNumber(c.prefix, "26-27", seq, c.padding);
+  if (t === "INV" && invoiceNumberProblems(number).length) throw new ApiError(422, "invalid_invoice_number", invoiceNumberProblems(number)[0]!);
+  if (orgId !== "org1") s.issuedByOrg[orgId]![t] = seq;
+  return number;
 }
 function requirePerm(p: Parameters<typeof can>[1], msg: string) {
   if (!can(role(), p)) throw new ApiError(403, "forbidden", msg);

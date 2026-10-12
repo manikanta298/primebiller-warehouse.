@@ -10,6 +10,11 @@ export function fyLabel(date: string): string {
   return `${String(start).slice(2)}-${String(start + 1).slice(2)}`;
 }
 
+/** Validate the actual number, including growth beyond its configured padding. */
+export function invoiceNumberProblems(number: string): string[] {
+  return /^[A-Za-z0-9/-]{1,16}$/.test(number) ? [] : ["Tax invoice number must contain 1–16 letters, digits, hyphens or slashes"];
+}
+
 export const PADDING_MIN = 3;
 export const PADDING_MAX = 6;
 
@@ -21,6 +26,8 @@ export function seriesProblems(
   const p: string[] = [];
   if (!/^[A-Z0-9]{1,6}$/.test(input.prefix)) p.push("Prefix must be 1–6 capital letters or digits");
   if (!Number.isInteger(input.padding) || input.padding < PADDING_MIN || input.padding > PADDING_MAX) p.push(`Digits must be between ${PADDING_MIN} and ${PADDING_MAX}`);
+  if (input.docType === "INV" && invoiceNumberProblems(docNumber(input.prefix, "26-27", 1, input.padding)).length)
+    p.push("Invoice prefix and digits exceed the 16-character limit including financial year and separators");
   if ((current.locked || current.lastNumber > 0) &&
       (input.prefix !== current.prefix || input.padding !== current.padding ||
        (input.resetPerFy !== undefined && current.resetPerFy !== undefined && input.resetPerFy !== current.resetPerFy)))
