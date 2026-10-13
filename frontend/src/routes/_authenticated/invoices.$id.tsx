@@ -10,6 +10,7 @@ import { invoiceCancelProblems } from "@/lib/invoice-rules";
 import { formatDate, formatINR } from "@/lib/format";
 import { lineTaxable } from "@/lib/gst";
 import { PageHeader, ErrorState, LoadingRows } from "@/components/app/states";
+import { InvoiceSheet } from "@/components/app/InvoiceSheet";
 import { PrintDocument } from "@/components/app/PrintDocument";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ function InvoiceDetail() {
   const { id } = Route.useParams();
   const session = useSession();
   const qc = useQueryClient();
+  const [preview, setPreview] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
   const q = useQuery({ queryKey: ["invoice", session?.orgId, id], queryFn: () => api.getInvoice(id), enabled: !!session?.orgId });
@@ -63,11 +65,13 @@ function InvoiceDetail() {
       <PageHeader
         title={i.number}
         eyebrow="Tax invoice"
-        actions={<div className="flex gap-2">{i.status !== "cancelled" && i.balance > 0 && <Button asChild><Link to="/receipts/new" search={{ customerId: i.customerId }}><Wallet /> Record payment</Link></Button>}{mayCancel && <Button variant="outline" onClick={() => setCancelOpen(true)}><X /> Cancel invoice</Button>}<Button variant="outline" disabled={!profile || !settings.data} title={!profile || !settings.data ? "Load print profile and organisation settings first" : `Print ${profile.copies} A4 copy/copies`} onClick={() => window.print()}><Printer /> Print {profile ? `(${profile.copies})` : ""}</Button></div>}
+        actions={<div className="flex gap-2">{i.status !== "cancelled" && i.balance > 0 && <Button asChild><Link to="/receipts/new" search={{ customerId: i.customerId }}><Wallet /> Record payment</Link></Button>}{mayCancel && <Button variant="outline" onClick={() => setCancelOpen(true)}><X /> Cancel invoice</Button>}<Button variant="outline" disabled={!profile || !settings.data} onClick={() => setPreview(v => !v)}>{preview ? "Hide invoice preview" : "Preview invoice"}</Button><Button variant="outline" disabled={!profile || !settings.data} title={!profile || !settings.data ? "Load print profile and organisation settings first" : `Print ${profile.copies} A4 copy/copies`} onClick={() => window.print()}><Printer /> Print {profile ? `(${profile.copies})` : ""}</Button></div>}
       >
         <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground"><StatusBadge status={i.status} /> {formatDate(i.date)} · due {formatDate(i.dueDate)}</div>
       </PageHeader>
       </div>
+      {preview && profile && settings.data && <section className="invoice-preview" aria-label="Invoice preview"><InvoiceSheet invoice={i} settings={settings.data} profile={profile} /></section>}
+      {[profiles.error, settings.error].filter(Boolean).map((error, index) => <ErrorState key={index} error={error} onRetry={() => { profiles.refetch(); settings.refetch(); }} />)}
       {i.status === "cancelled" && <div className="mb-4 border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive">CANCELLED · {i.cancelled?.reason ?? "Invoice voided"} · This document is not valid for payment or tax filing.</div>}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">

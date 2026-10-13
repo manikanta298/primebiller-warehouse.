@@ -15,7 +15,7 @@ export function canonicalJson(value: unknown): string {
 }
 export const snapshotHash = (value: unknown) => createHash("sha256").update(canonicalJson(value)).digest("hex");
 export const parseSnapshot = (value: any): Invoice => typeof value === "string" ? JSON.parse(value) : value;
-const frozenFields = ["id","number","date","dueDate","customerId","customerName","gstin","placeOfSupplyCode","placeOfSupplyName","supply","challans","lines","taxable","cgst","sgst","igst","roundOff","grandTotal","byRate","createdBy"] as const;
+const frozenFields = ["id","number","date","dueDate","customerId","customerName","billingAddress","customerPhone","gstin","placeOfSupplyCode","placeOfSupplyName","supply","challans","lines","taxable","cgst","sgst","igst","roundOff","grandTotal","byRate","createdBy"] as const;
 export function assertInvoiceFrozen(before: Invoice, after: Invoice) {
   for (const field of frozenFields) if (canonicalJson(before[field] ?? null) !== canonicalJson(after[field] ?? null))
     throw new ApiError(409, "invoice_immutable", `Issued invoice ${field} cannot be changed; use the supported correction workflow`);

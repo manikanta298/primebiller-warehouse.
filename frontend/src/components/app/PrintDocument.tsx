@@ -1,5 +1,7 @@
 /** The print-only rendition of issued invoices and challans. All values come from
  * the saved document and the organisation's settings, never preview fixtures. */
+import { createPortal } from "react-dom";
+import { InvoiceSheet } from "./InvoiceSheet";
 import type { Challan, Invoice, OrgSettings, PrintProfile } from "@/api/types";
 import { formatDate, formatINR, formatQty } from "@/lib/format";
 import { printCopyLabels, taxBreakdown } from "@/lib/print-rules";
@@ -18,7 +20,9 @@ export function PrintDocument(props: Props) {
   const taxRows = taxBreakdown(doc.lines);
   const lines = doc.lines;
   const copies = printCopyLabels(profile.copies);
-  return (
+  if (typeof document === "undefined") return null;
+  if (invoice && profile.paper === "A4") return createPortal(<div className="print-document print-a4" aria-label="Invoice print layout">{copies.map(copy => <InvoiceSheet key={copy} invoice={invoice} settings={settings} profile={profile} copy={copy} />)}</div>, document.body);
+  return createPortal(
     <div className={`print-document ${profile.paper === "80mm" ? "print-thermal" : "print-a4"}`} aria-label={`${isInvoice ? "Invoice" : "Challan"} print layout`}>
       {copies.map((copy, n) => (
         <article className="print-sheet" key={n}>
@@ -71,6 +75,6 @@ export function PrintDocument(props: Props) {
           {profile.footer && <footer className="print-footer">{profile.footer}</footer>}
         </article>
       ))}
-    </div>
+    </div>, document.body
   );
 }

@@ -44,7 +44,7 @@ test('invoice allocation, immutable posting, audit rollback and tenant-scoped re
   assert.equal(counter,0);assert.equal(invoice,undefined);assert.equal(events.length,0);failAudit=false;
   await post(async u=>{const n=await u.next('INV',baseInvoice.date);u.put('invoices',{...baseInvoice,number:n.number});});
   assert.equal(counter,1);assert.equal(events[0].event_type,'issued');assert.equal(events[0].snapshot_sha256,snapshotHash(invoice));
-  for(const [field,value] of [['number','OTHER/1'],['date','2026-10-11'],['grandTotal',1],['lines',[{itemId:'other'}]],['customerId','other']]){
+  for(const [field,value] of [['number','OTHER/1'],['date','2026-10-11'],['grandTotal',1],['lines',[{itemId:'other'}]],['customerId','other'],['billingAddress','Modified address'],['customerPhone','9999999999']]){
    await assert.rejects(post(u=>{u.put('invoices',{...invoice,[field]:value});return Promise.resolve();}),e=>e.code==='invoice_immutable');
   }
   assert.equal(events.length,1);assert.equal(invoice.grandTotal,118);
