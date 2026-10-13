@@ -119,14 +119,15 @@ function Sidebar({ session, mobile = false, onNavigate }: { session: Session; mo
 function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const ca = session.user.role === "Chartered Accountant";
   const org = session.orgs.find((o) => o.id === session.orgId);
   const { data: godowns = [] } = useQuery({
     queryKey: ["godowns", session.orgId],
     queryFn: () => api.listGodowns(session.orgId!),
-    enabled: !!session.orgId,
+    enabled: !!session.orgId && !ca,
   });
-  const { data: notes = [] } = useQuery({ queryKey: ["notifications"], queryFn: api.listNotifications });
-  const { data: alerts = [] } = useQuery({ queryKey: ["alerts", session.godownId ?? "all"], queryFn: () => api.getAlerts(session.godownId ?? "all") });
+  const { data: notes = [] } = useQuery({ queryKey: ["notifications"], queryFn: api.listNotifications, enabled: !ca });
+  const { data: alerts = [] } = useQuery({ queryKey: ["alerts", session.godownId ?? "all"], queryFn: () => api.getAlerts(session.godownId ?? "all"), enabled: !ca });
   const openAlerts = alerts.filter((a) => !a.acknowledged).length;
   const unread = notes.filter((n) => !n.read).length + openAlerts;
   const godownName = session.godownId === "all" ? "All godowns" : godowns.find((g) => g.id === session.godownId)?.name ?? "…";
@@ -158,7 +159,9 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
             <DropdownMenuItem
               key={o.id}
               onClick={() => {
-                updateSession({ orgId: o.id, godownId: "all" });
+                const role = o.role ?? session.user.role;
+                updateSession({ orgId: o.id, godownId: "all", user: { ...session.user, role } });
+                navigate({ to: role === "Chartered Accountant" ? "/ca" : "/dashboard" });
                 qc.invalidateQueries();
               }}
             >
@@ -171,7 +174,7 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DropdownMenu>
+      {!ca && <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" aria-label={`Choose warehouse: ${godownName}`} className="order-last h-11 w-full min-w-0 justify-start sm:order-none sm:w-auto sm:max-w-44">
             <Warehouse />
@@ -188,9 +191,9 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
-      </DropdownMenu>
+      </DropdownMenu>}
 
-      <GlobalSearch />
+      {!ca && <GlobalSearch />}
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <DropdownMenu>

@@ -39,7 +39,7 @@ async function loginResponse(userId: string): Promise<LoginResponse> {
   return {
     token: signToken(u["id"], u["token_version"]),
     user: { id: u["id"], name: u["name"], email: u["email"], role: orgs[0]!["role"] },
-    orgs: orgs.map((o) => ({ id: o["id"], name: o["name"], gstin: o["gstin"], stateCode: o["state_code"], stateName: o["state_name"] })),
+    orgs: orgs.map((o) => ({ id: o["id"], name: o["name"], gstin: o["gstin"], stateCode: o["state_code"], stateName: o["state_name"], role: o["role"] })),
   };
 }
 

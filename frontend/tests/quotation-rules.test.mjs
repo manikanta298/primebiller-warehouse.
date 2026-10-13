@@ -32,3 +32,14 @@ test('earmarked quote advances take priority over older general customer advance
   assert.deepEqual(invoiceAdvanceAllocations([general, linked], ['so1'], true, 100), [{advanceId:'q-adv',amount:40},{advanceId:'general',amount:60}]);
   assert.deepEqual(invoiceAdvanceAllocations([general, linked], ['so1'], false, 20), [{advanceId:'q-adv',amount:20}]);
 });
+
+test('quotation drafts do not need a dispatch warehouse', () => {
+  assert.deepEqual(quotationProblems({ ...draft, godownId: '' }, '2026-10-11'), []);
+});
+
+test('quotation availability excludes held stock and absent rows', async () => {
+  const { quotationFreeStock } = await import('../src/lib/quotation-rules.ts');
+  assert.equal(quotationFreeStock(), 0);
+  assert.equal(quotationFreeStock([{onHand: 5, held: 2}, {onHand: 1, held: 3}]), 3);
+  assert.equal(quotationFreeStock([{onHand: 2, held: 2}]), 0);
+});

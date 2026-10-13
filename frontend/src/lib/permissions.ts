@@ -1,4 +1,4 @@
-import type { Role } from "@/api/types";
+import { CA_ROLE, type Role } from "../api/types.ts";
 
 /** Single source of truth for what each role may do (spec 0.1). The UI hides buttons; the server enforces the same table. */
 export const PERMISSIONS = {
@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   cancelTransfer: ["Owner", "Manager"],
   adjust: ["Owner", "Manager", "Storekeeper"],
   approveAdjustment: ["Owner", "Manager"],
+  caAudit: ["Owner", "Manager", "Accountant", CA_ROLE],
   reports: ["Owner", "Manager", "Accountant"],
   printProfiles: ["Owner", "Manager"],
   manageUsers: ["Owner"],
@@ -39,6 +40,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   cancelTransfer: "Cancel transfers",
   adjust: "Create stock adjustments",
   approveAdjustment: "Approve adjustments",
+  caAudit: "Read-only CA audit workspace",
   reports: "Reports and GSTR-1",
   printProfiles: "Print profiles",
   manageUsers: "Manage users",
@@ -48,3 +50,5 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 export function can(role: Role | string | undefined, p: Permission): boolean {
   return !!role && (PERMISSIONS[p] as readonly string[]).includes(role);
 }
+
+export const isReadOnlyRole = (role: Role | string | undefined): boolean => role === CA_ROLE;

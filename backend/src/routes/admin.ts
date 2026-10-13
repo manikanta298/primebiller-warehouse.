@@ -44,7 +44,7 @@ adminRouter.get("/users", h(async (req) => {
 const userInput = z.object({
   id: z.string().optional(), name: z.string().trim().min(1, "Name is required"), email: z.string().trim().toLowerCase().email("Enter a valid email"),
   mobile: z.string().refine((m) => !m.trim() || /^\d{10}$/.test(m.replace(/\D/g, "")), "Mobile must be 10 digits or blank"), role: z.enum(ROLES as [string, ...string[]]),
-  godownIds: z.array(z.string()).min(1, "Pick at least one godown"), active: z.boolean(),
+  godownIds: z.array(z.string()).default([]), active: z.boolean(),
 });
 const saveUser = h(async (req) => {
   requirePerm(req.ctx, "manageUsers", "Only the Owner can manage users");

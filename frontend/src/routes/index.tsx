@@ -1,3 +1,5 @@
+import { getSession } from "@/lib/session";
+import { CA_ROLE } from "@/api/types";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
@@ -10,6 +12,6 @@ export const Route = createFileRoute("/")({
     ],
   }),
   beforeLoad: () => {
-    throw redirect({ to: "/dashboard" });
+    throw redirect({ to: getSession()?.user.role === CA_ROLE ? "/ca" : "/dashboard" });
   },
 });

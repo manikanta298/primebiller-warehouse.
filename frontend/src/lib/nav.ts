@@ -48,6 +48,7 @@ export const NAV = [
     section: "Operations",
     items: [
       { to: "/import", label: "Bulk import", icon: Upload },
+      { to: "/ca", label: "Chartered Accountant", icon: ShieldCheck },
       { to: "/reports", label: "Reports & GSTR-1", icon: BarChart3 },
       { to: "/print-profiles", label: "Print profiles", icon: Printer },
       { to: "/users", label: "Users & roles", icon: ShieldCheck },

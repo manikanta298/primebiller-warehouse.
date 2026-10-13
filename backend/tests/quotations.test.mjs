@@ -92,6 +92,22 @@ test('quotation HTTP lifecycle: stock unchanged, accepted once, advances linked,
     assert.equal((await request(path,undefined,'GET','other-org')).status,403);
     role='Owner';
     assert.equal((await request('/receipts',{...payment,requestKey:'after-conversion-new-key'})).status,422);
+    // New quotations are stock-neutral and have no warehouse until conversion.
+    const noWarehouse = await request('/quotations', { ...input, godownId: '' });
+    assert.equal(noWarehouse.status, 200, JSON.stringify(noWarehouse.body));
+    assert.equal(noWarehouse.body.godownId, '');
+    const neutralPath = '/quotations/' + noWarehouse.body.id;
+    role = 'Sales';
+    assert.equal((await request(neutralPath)).status, 200);
+    await request(neutralPath+'/issue', {}); await request(neutralPath+'/accept', {});
+    assert.equal((await request(neutralPath+'/convert', {})).status, 422);
+    assert.equal((await request(neutralPath+'/convert', { godownId: 'g2' })).status, 403);
+    assigned = ['g1'];
+    const neutralOrder = await request(neutralPath+'/convert', { godownId: 'g1' });
+    assert.equal(neutralOrder.status, 200, JSON.stringify(neutralOrder.body));
+    assert.equal(neutralOrder.body.godownId, 'g1');
+    assert.equal((await request(neutralPath+'/convert', { godownId: 'g1' })).body.id, neutralOrder.body.id);
+    role = 'Owner';
     // A delivered challan for this order applies only its own quote advance, even with general advances disabled.
     const line={ ...o.lines[0], allocations:[] };
     const c={id:'dc1',number:'DC/1',date,status:'delivered',invoiceNo:'',customerId:'c1',customerName:'Customer',soId:o.id,soNumber:'SO/1',godownId:'g1',placeOfSupplyCode:'36',placeOfSupplyName:'Telangana',lines:[line],events:[]};

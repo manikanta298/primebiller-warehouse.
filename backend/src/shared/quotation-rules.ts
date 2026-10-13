@@ -7,7 +7,8 @@ export function realQuotationDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 export function quotationProblems(d: OrderDraft & { validUntil: string; terms: string }, today: string): string[] {
-  const p = orderDraftProblems(d);
+  // Warehouse is chosen only when converting a stock-neutral quotation.
+  const p = orderDraftProblems({ ...d, godownId: "quotation" });
   if (d.date > today) p.push("Quotation date cannot be in the future");
   if (!realQuotationDate(d.validUntil) || d.validUntil < d.date) p.push("Validity must be a real date on or after the quotation date");
   if (d.terms.length > 2000) p.push("Terms cannot exceed 2,000 characters");
@@ -43,4 +44,9 @@ export function invoiceAdvanceAllocations<T extends { id: string; date: string; 
   const linked = applyAdvancesOldestFirst(eligible.filter(a => !!a.quotationId), total);
   const left = Math.max(0, total - linked.reduce((n, a) => n + a.amount, 0));
   return [...linked, ...applyAdvancesOldestFirst(eligible.filter(a => !a.quotationId), left)];
+}
+
+/** Free stock across the warehouse rows visible to the signed-in user. */
+export function quotationFreeStock(stock: { onHand: number; held: number }[] = []): number {
+  return Number(stock.reduce((sum, row) => sum + Math.max(0, row.onHand - row.held), 0).toFixed(3));
 }
