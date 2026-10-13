@@ -18,6 +18,7 @@ export function requireWarehouse(ctx: Ctx, id: string): void {
 }
 export function visibleDocument(ctx: Ctx, key: string, doc: any): boolean {
   if (warehouseIds(ctx) === undefined) return true;
+  if (key === "quotations" && doc.godownId === "" && ctx.role === "Sales") return true;
   if (key === "transfers") return canUseWarehouse(ctx, doc.fromId) || canUseWarehouse(ctx, doc.toId);
   if (key === "challans" && ctx.role === "Driver" && doc.driverName?.toLowerCase() !== ctx.userName.toLowerCase()) return false;
   return typeof doc.godownId === "string" && canUseWarehouse(ctx, doc.godownId);

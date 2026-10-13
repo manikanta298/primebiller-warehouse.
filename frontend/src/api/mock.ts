@@ -664,14 +664,14 @@ function quoteForOrg(id: string): Quotation {
   const s = db(), orgId = getSession()?.orgId ?? "";
   const q = s.quotations.find(q => q.id === id && s.quotationOrgIds[q.id] === orgId);
   if (!q) throw new ApiError(404, "not_found", "Quotation not found");
-  if (!quoteWarehouseAllowed(q.godownId)) throw new ApiError(403, "warehouse_forbidden", "Warehouse is not assigned to you");
+  if (q.godownId && !quoteWarehouseAllowed(q.godownId)) throw new ApiError(403, "warehouse_forbidden", "Warehouse is not assigned to you");
   return q;
 }
 export async function listQuotations(): Promise<Quotation[]> {
   await delay();
   if (!["Owner", "Manager", "Sales", "Accountant"].includes(role())) throw new ApiError(403, "forbidden", "Your role cannot view quotations");
   const s = db(), orgId = getSession()?.orgId ?? "";
-  return clone(s.quotations.filter(q => s.quotationOrgIds[q.id] === orgId && quoteWarehouseAllowed(q.godownId)));
+  return clone(s.quotations.filter(q => s.quotationOrgIds[q.id] === orgId && (!q.godownId || quoteWarehouseAllowed(q.godownId))));
 }
 export async function getQuotation(id: string): Promise<Quotation> {
   await listQuotations(); return clone(quoteForOrg(id));
@@ -687,7 +687,7 @@ export async function saveQuotation(input: QuotationInput): Promise<Quotation> {
   const cust = s.parties.find(p => p.id === input.customerId && s.partyOrgIds[p.id] === orgId);
   if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked)) throw new ApiError(422, "validation", "Choose an active customer");
   const g = s.godowns.find(g => g.id === input.godownId && g.orgId === orgId && g.active);
-  if (!g || !quoteWarehouseAllowed(g.id)) throw new ApiError(403, "warehouse_forbidden", "Choose an assigned active warehouse");
+  if (input.godownId && (!g || !quoteWarehouseAllowed(g.id))) throw new ApiError(403, "warehouse_forbidden", "Choose an assigned active warehouse");
   const lines = input.lines.map(l => {
     const it = s.items.find(it => it.id === l.itemId && s.itemOrgIds[it.id] === orgId);
     if (!it?.active || l.uom !== it.baseUom) throw new ApiError(422, "validation", "Select an active item using its base unit");
@@ -701,7 +701,7 @@ export async function saveQuotation(input: QuotationInput): Promise<Quotation> {
     id: previous?.id ?? crypto.randomUUID(), number: previous?.number ?? docNumber("QT", fy, seq, 5),
     date: input.date, validUntil: input.validUntil, notes: input.notes, terms: input.terms,
     customerId: cust.id, customerName: cust.name, placeOfSupplyCode: cust.stateCode, placeOfSupplyName: cust.stateName,
-    godownId: g.id, status: "draft", lines, grandTotal: computeTotals(lines, supply).grandTotal, supply,
+    godownId: g?.id ?? "", status: "draft", lines, grandTotal: computeTotals(lines, supply).grandTotal, supply,
     linked: [], payments: [], createdBy: previous?.createdBy ?? userName(), createdAt: previous?.createdAt ?? nowIso(),
   };
   if (previous) Object.assign(previous, q);
@@ -723,7 +723,7 @@ export async function quotationAction(id: string, action: "issue" | "accept" | "
   }
   return clone(q);
 }
-export async function convertQuotation(id: string): Promise<SalesOrder> {
+export async function convertQuotation(id: string, warehouseId?: string): Promise<SalesOrder> {
   await delay();
   if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot convert quotations");
   const s = db(), q = quoteForOrg(id), orgId = getSession()?.orgId ?? "";
@@ -732,7 +732,9 @@ export async function convertQuotation(id: string): Promise<SalesOrder> {
   if (problem) throw new ApiError(409, "invalid_status", problem);
   const cust = s.parties.find(p => p.id === q.customerId && s.partyOrgIds[p.id] === orgId);
   const org = s.orgs.find(o => o.id === orgId)!;
-  if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked) || !s.godowns.some(g => g.id === q.godownId && g.active)) throw new ApiError(422, "validation", "Customer or warehouse is unavailable");
+  const godownId = warehouseId ?? q.godownId;
+  if (!quoteWarehouseAllowed(godownId)) throw new ApiError(403, "warehouse_forbidden", "Choose an assigned warehouse");
+  if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked) || !s.godowns.some(g => g.id === godownId && g.orgId === orgId && g.active)) throw new ApiError(422, "validation", "Customer or warehouse is unavailable");
   if (cust.stateCode !== q.placeOfSupplyCode || supplyType(org.stateCode, cust.stateCode) !== q.supply) throw new ApiError(409, "customer_changed", "Customer state changed; create a new quotation");
   for (const l of q.lines) {
     const it = s.items.find(it => it.id === l.itemId && s.itemOrgIds[it.id] === orgId);
@@ -742,7 +744,7 @@ export async function convertQuotation(id: string): Promise<SalesOrder> {
   if (payments.some(({ a, receipt }) => !a || !receipt || a.quotationId !== q.id || a.customerId !== q.customerId)) throw new ApiError(409, "invalid_advance", "Quotation advance is missing or mismatched");
   const o: SalesOrder = {
     id: crypto.randomUUID(), number: null, date: quoteToday(), customerId: q.customerId, customerName: q.customerName,
-    placeOfSupplyCode: q.placeOfSupplyCode, placeOfSupplyName: q.placeOfSupplyName, godownId: q.godownId, status: "draft",
+    placeOfSupplyCode: q.placeOfSupplyCode, placeOfSupplyName: q.placeOfSupplyName, godownId, status: "draft",
     notes: [q.notes, q.terms].filter(Boolean).join("\n").slice(0, 2000), lines: q.lines.map(l => ({ ...l, id: crypto.randomUUID(), deliveredQty: 0 })),
     grandTotal: q.grandTotal, quotationId: q.id, quotationNumber: q.number,
     linked: q.payments.map(p => ({ type: "receipt", number: p.receiptNo, date: p.date, status: "Advance", amount: p.amount })),
