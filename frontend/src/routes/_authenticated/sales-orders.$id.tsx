@@ -45,10 +45,10 @@ function SalesOrderPage() {
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["sales-order", session?.orgId, id], queryFn: () => api.getSalesOrder(id), enabled: !isNew && !!session?.orgId });
   if (!isNew && isLoading) return <LoadingRows rows={8} />;
   if (!isNew && error) return <ErrorState error={error} onRetry={() => refetch()} />;
-  return <Editor key={`${session?.orgId}:${id}`} order={isNew ? null : data!} />;
+  return <SalesOrderEditor key={`${session?.orgId}:${id}`} order={isNew ? null : data!} />;
 }
 
-function Editor({ order }: { order: SalesOrder | null }) {
+export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
   const session = useSession()!;
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -62,7 +62,7 @@ function Editor({ order }: { order: SalesOrder | null }) {
   const [godownId, setGodownId] = useState(order?.godownId ?? (session.godownId !== "all" ? session.godownId : ""));
   const [date, setDate] = useState(order?.date ?? indiaItemDate());
   const [notes, setNotes] = useState(order?.notes ?? "");
-  const [lines, setLines] = useState<Line[]>(() => (order?.lines.length ? order.lines.map((l) => ({ ...l, key: l.id })) : [emptyLine()]));
+  const [lines, setLines] = useState<Line[]>(() => (order?.lines.length ? order.lines.map(({ id, ...l }) => ({ ...l, key: id })) : [emptyLine()]));
   const [creditOpen, setCreditOpen] = useState(false);
   const [credit, setCredit] = useState<CreditCheck | null>(null);
   useEffect(() => {
@@ -84,7 +84,11 @@ function Editor({ order }: { order: SalesOrder | null }) {
     customerId,
     godownId,
     notes,
-    lines: filled.map(({ key: _k, deliveredQty: _d, ...l }) => l),
+    // A loaded DTO has server fields; TypeScript Omit does not remove them at runtime.
+    lines: filled.map(l => ({
+      itemId: l.itemId, itemName: l.itemName, hsn: l.hsn, uom: l.uom,
+      qty: l.qty, rate: l.rate, discountPct: l.discountPct, gstRate: l.gstRate,
+    })),
   });
   const cleanSnapshot = useRef<string | null>(null);
   const currentSnapshot = JSON.stringify(input());

@@ -22,3 +22,7 @@ This change retains the application's domestic goods model. SEZ/export, reverse 
 2. Deploy the backend and frontend from the same revision. Deploy the backend first so it accepts warehouse-free quotation drafts and dispatch selection on conversion.
 3. No database script is needed.
 4. Test a same-state and a different-state customer, a stocked and an unstocked item, then accept and convert a quotation with a permitted dispatch warehouse.
+
+## Sales Order confirmation fix
+
+A loaded Sales Order line includes `id` and `deliveredQty`; these are response fields, not editable save-request fields. The editor now removes the persisted line ID when loading local form state and explicitly maps only `itemId`, `itemName`, `hsn`, `uom`, `qty`, `rate`, `discountPct` and `gstRate` when saving. This fixes both Save draft and Confirm & hold stock, which saves first. Keep the backend's strict line schema. Existing records and stock remain unchanged until normal confirmation succeeds.
