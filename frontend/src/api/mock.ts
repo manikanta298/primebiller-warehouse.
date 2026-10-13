@@ -1174,6 +1174,7 @@ function buildInvoice(s: Store, id: string, number: string, date: string, cs: Ch
   const t = computeTotals(lines, supply);
   return {
     id, number, date, dueDate: dueDateFor(date, cust.creditDays ?? 30), customerId: cust.id, customerName: cust.name, gstin: cust.gstin,
+    billingAddress: [cust.address, cust.city, cust.pin].filter(Boolean).join(", "), customerPhone: cust.phone,
     placeOfSupplyCode: c0.placeOfSupplyCode, placeOfSupplyName: c0.placeOfSupplyName, supply,
     challans: cs.map((c) => ({ id: c.id, number: c.number, soId: c.soId, soNumber: c.soNumber })), lines,
     taxable: t.taxable, cgst: t.cgst, sgst: t.sgst, igst: t.igst, roundOff: t.roundOff, grandTotal: t.grandTotal, byRate: t.byRate,

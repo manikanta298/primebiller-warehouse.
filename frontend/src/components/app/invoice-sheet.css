@@ -1,0 +1,55 @@
+.invoice-sheet { width: 100%; max-width: 186mm; margin: 0 auto; color: #17212b; background: #fff; font: 10px/1.45 Arial, sans-serif; overflow-wrap: anywhere; }
+.invoice-sheet * { box-sizing: border-box; }
+.invoice-sheet h1, .invoice-sheet h2, .invoice-sheet h3, .invoice-sheet p, .invoice-sheet dl, .invoice-sheet dd { margin: 0; }
+.invoice-caption { display: flex; justify-content: center; position: relative; padding: 5px; font-size: 14px; }
+.invoice-caption span { position: absolute; right: 3px; bottom: 5px; font-size: 10px; }
+.invoice-border { border: 1px solid #8a9aa7; }
+.invoice-business { display: flex; align-items: center; gap: 18px; padding: 14px 18px; min-height: 85px; border-bottom: 1px solid #8a9aa7; }
+.invoice-business > div:last-child { min-width: 0; }
+.invoice-business h1 { font-size: 21px; line-height: 1.3; letter-spacing: .03em; }
+.invoice-mark { flex-shrink: 0; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border: 2px solid #147da4; border-radius: 10px; color: #147da4; font-size: 20px; font-weight: bold; }
+.invoice-parties { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.invoice-sheet h2, .invoice-amounts thead, .invoice-items thead, .invoice-grand-total { background: #deedf6; }
+.invoice-sheet h2 { padding: 3px 8px; font-size: 11px; border-bottom: 1px solid #8a9aa7; font-weight: 600; }
+.invoice-addresses section + section { border-top: 1px solid #8a9aa7; }
+.invoice-block { padding: 7px 10px; }
+.invoice-block p + p { margin-top: 2px; }
+.invoice-meta { border-left: 1px solid #8a9aa7; padding: 9px; }
+.invoice-meta div { display: grid; grid-template-columns: minmax(0, 48fr) minmax(0, 52fr); gap: 5px; padding: 3px 0; }
+.invoice-meta dd { font-weight: 600; }
+.invoice-status { text-transform: capitalize; }
+.invoice-sheet table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.invoice-sheet th, .invoice-sheet td { padding: 5px 4px; border: 1px solid #8a9aa7; text-align: right; vertical-align: top; font-variant-numeric: tabular-nums; }
+.invoice-items { border-top: 1px solid #8a9aa7; }
+.invoice-items th { text-align: center; vertical-align: middle; font-weight: 600; }
+.invoice-items tbody td:first-child, .invoice-items tbody td:nth-child(2) { text-align: left; }
+.invoice-items tbody td { border-block: 0; padding-block: 6px; }
+.invoice-items tbody tr:last-child td { padding-bottom: 18px; }
+.invoice-items small { display: block; font-size: 9px; color: #53616c; }
+.invoice-items tfoot { font-weight: bold; }
+.invoice-items tfoot th { text-align: right; }
+.invoice-summary { display: grid; grid-template-columns: 51% 49%; }
+.invoice-payment { border-right: 1px solid #8a9aa7; }
+.invoice-words { padding: 8px 10px; border-top: 1px solid #8a9aa7; }
+.invoice-sheet h3 { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+.invoice-amounts th { font-weight: normal; }
+.invoice-grand-total th, .invoice-grand-total td { font-weight: bold; }
+.invoice-hsn table th:first-child, .invoice-hsn table td:first-child { text-align: left; }
+.invoice-bottom { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); border-top: 1px solid #8a9aa7; padding: 12px 10px; gap: 10px; white-space: pre-wrap; }
+.invoice-sign { display: flex; flex-direction: column; justify-content: space-between; min-height: 70px; text-align: center; }
+.invoice-sheet footer { text-align: center; padding: 6px; }
+.invoice-void { border: 2px solid #a82020; color: #a82020; padding: 10px; text-align: center; font-weight: bold; }
+.invoice-preview { overflow-x: auto; border: 1px solid #d4dce2; border-radius: 8px; background: #e8edf1; padding: 16px; margin-block: 16px; }
+.invoice-preview .invoice-sheet { min-width: 690px; padding: 16px; box-shadow: 0 2px 10px #0001; }
+@media print {
+  .invoice-sheet { font-size: 9pt; max-width: 186mm; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .invoice-sheet:last-child { break-after: auto; }
+  .invoice-sheet thead { display: table-header-group; }
+  .invoice-sheet tfoot { display: table-row-group; }
+  .invoice-sheet tr, .invoice-business, .invoice-parties, .invoice-summary, .invoice-bottom { break-inside: avoid; }
+  .invoice-business h1 { font-size: 17pt; }
+  .invoice-caption { font-size: 12pt; }
+  .invoice-sheet h2, .invoice-sheet h3 { font-size: 9pt; }
+  .invoice-sheet small { font-size: 8pt; }
+  .invoice-words { break-inside: avoid; }
+}

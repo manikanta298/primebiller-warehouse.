@@ -433,6 +433,9 @@ export interface Advance {
 }
 
 export interface Invoice {
+  /** Captured at issuance; older documents may not have a billing address. */
+  billingAddress?: string;
+  customerPhone?: string;
   id: string;
   number: string;
   date: string;

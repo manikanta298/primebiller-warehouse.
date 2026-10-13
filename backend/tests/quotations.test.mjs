@@ -12,7 +12,7 @@ test('quotation HTTP lifecycle: stock unchanged, accepted once, advances linked,
   const docs = new Map(), counters = new Map();
   let role = 'Owner', assigned = ['g1'], stockWrites = [], ledgerWrites = 0;
   const item = { id: 'i1', org_id: 'org1', sku: 'I1', name: 'Item', category: '', brand: '', hsn: '1234', gst_rate: 18, base_uom: 'PCS', conversions: [], sale_price: 100, cost_price: 50, active: 1 };
-  const party = { id: 'c1', org_id: 'org1', kind: 'customer', name: 'Customer', state_code: '36', state_name: 'Telangana', credit_limit: 10000, outstanding: 0, credit_days: 30 };
+  const party = { id: 'c1', org_id: 'org1', kind: 'customer', name: 'Customer', address: 'Saved billing street', city: 'Hyderabad', pin: '500001', phone: '9999999999', state_code: '36', state_name: 'Telangana', credit_limit: 10000, outstanding: 0, credit_days: 30 };
   const stock = { item_id: 'i1', godown_id: 'g1', on_hand: 10, held: 0, reorder_level: 0, max_level: 0 };
   async function query(sql, p = []) {
     if (sql.startsWith('SELECT id, name, active')) return [[{ id: 'u1', name: 'Tester', active: 1, token_version: 0 }], []];
@@ -114,7 +114,7 @@ test('quotation HTTP lifecycle: stock unchanged, accepted once, advances linked,
     docs.set('challans:dc1',c);
     docs.set('advances:unrelated',{id:'unrelated',date,customerId:'c1',amount:100,remaining:100,quotationId:'other-q',salesOrderId:'other-so'});
     const issued=await request('/invoices',{challanIds:['dc1'],date,applyAdvances:false});
-    assert.equal(issued.status,200,JSON.stringify(issued.body)); assert.equal(issued.body.balance,78); assert.equal(issued.body.advances.length,1); assert.equal(docs.get('advances:unrelated').remaining,100);
+    assert.equal(issued.status,200,JSON.stringify(issued.body)); assert.equal(issued.body.billingAddress,'Saved billing street, Hyderabad, 500001'); assert.equal(issued.body.customerPhone,'9999999999'); assert.equal(issued.body.balance,78); assert.equal(issued.body.advances.length,1); assert.equal(docs.get('advances:unrelated').remaining,100);
     assert.equal(docs.get('advances:adv-'+paid.body.id).remaining,0);
     const cancelled=await request('/invoices/'+issued.body.id+'/cancel',{reason:'Test cancellation'});
     assert.equal(cancelled.status,200,JSON.stringify(cancelled.body)); assert.equal(docs.get('advances:adv-'+paid.body.id).remaining,40);
