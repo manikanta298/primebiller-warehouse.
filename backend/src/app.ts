@@ -6,6 +6,7 @@ import { enforceReadAccess } from "./access.js";
 import { requireAuth } from "./auth.js";
 import { errorHandler } from "./errors.js";
 import { authRouter } from "./routes/auth.js";
+import { passwordOtpRouter } from "./routes/password-otp.js";
 import { recordDeleteRouter } from "./routes/record-delete.js";
 import { coreRouter } from "./routes/core.js";
 import { quotationRouter } from "./routes/quotations.js";
@@ -50,8 +51,11 @@ export function createApp() {
   v1.use("/auth/setup-status", limitAuthRequests(30));
   v1.use("/auth/forgot-password", limitAuthRequests(5));
   v1.use("/auth/reset-password", limitAuthRequests(10));
+  v1.use("/auth/forgot-password-otp", limitAuthRequests(5));
+  v1.use("/auth/reset-password-otp", limitAuthRequests(20));
   v1.use("/auth/accept-invite", limitAuthRequests(10));
   v1.use("/auth", authRouter);
+  v1.use("/auth", passwordOtpRouter);
   v1.use(requireAuth); // everything below needs a valid token
   v1.use(enforceReadAccess);
   v1.use(recordDeleteRouter);
