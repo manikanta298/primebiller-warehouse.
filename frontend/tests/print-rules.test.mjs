@@ -32,7 +32,7 @@ test('footer trimming preserves other choices', () => {
   const p = copy('B', { footer: '  Thanks  ', copies: 2 });
   const actual = normalisePrintProfile(p);
   assert.equal(actual.footer, 'Thanks');
-  assert.equal(actual.copies, 2);
+  assert.equal(actual.copies, 1);
   assert.equal(p.footer, '  Thanks  ');
 });
 test('separate copy labels do not multiply money amounts', () => {

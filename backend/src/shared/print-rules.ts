@@ -9,7 +9,7 @@ export const PRINT_TEMPLATES: Record<PrintProfile["id"], Pick<PrintProfile, "id"
 
 export const PRINT_DEFAULTS: Record<PrintProfile["id"], PrintProfile> = {
   A: { ...PRINT_TEMPLATES.A, showLogo: false, showBank: false, showHsnSummary: false, showSignature: false, showQr: false, copies: 1, footer: "Thank you. Visit again." },
-  B: { ...PRINT_TEMPLATES.B, showLogo: true, showBank: true, showHsnSummary: true, showSignature: true, showQr: false, copies: 3, footer: "This is a computer generated invoice." },
+  B: { ...PRINT_TEMPLATES.B, showLogo: true, showBank: true, showHsnSummary: true, showSignature: true, showQr: false, copies: 1, footer: "This is a computer generated invoice." },
 };
 
 export function printProfileProblems(p: PrintProfile, expected?: PrintProfile["id"]): string[] {
@@ -26,7 +26,7 @@ export function printProfileProblems(p: PrintProfile, expected?: PrintProfile["i
 }
 
 export function normalisePrintProfile(p: PrintProfile): PrintProfile {
-  return { ...p, footer: p.footer.trim() };
+  return { ...p, copies: p.id === "B" ? 1 : p.copies, footer: p.footer.trim() };
 }
 
 /** A copy represents one separate print sheet; never multiply an invoice amount. */

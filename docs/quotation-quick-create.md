@@ -1,0 +1,13 @@
+# Quotation entry and single-page invoice output
+
+Customer and item fields are now single auto-suggest inputs, with no native dropdown below them. Type two characters, use arrows and Enter, or tap a suggestion. The selected name is displayed in the field; Clear selection removes it. An uncommitted search does not replace a selected record.
+
+The quotation Customer + opens a customer creation popup. GSTIN and PAN may both be blank. Supplied values still undergo normal format, checksum, state and matching validation. Name and state are required. Owner/Manager/Sales retain their existing customer-creation permissions. The Item + creates a new item for the selected quotation line, using the existing Owner/Manager master permission. Name, SKU, HSN, base unit, sale price and GST rate are entered in the popup. A new item starts with no stock; this action never changes stock balances.
+
+Successful creation merges the returned record into the organisation's query cache and selects it immediately without leaving or saving the quotation. API validation and duplicate errors remain visible in the popup. Cancel leaves the quotation unchanged. The quote itself is persisted only with Save draft.
+
+In Settings, Organisation Info includes **Default quotation terms and conditions** and **Default quotation notes** (up to 2,000 characters each). These fill new quotations once, after settings load. A manually edited field is preserved even if the request completes later. Existing quotations always keep their saved text. A narrow authenticated /quotation-defaults endpoint supplies only these two fields, including to Sales users; it never exposes bank or E-way Bill credentials.
+
+Tax invoices now render only one Original, even if a legacy profile requested duplicate/triplicate copies. Profile B defaults and normalisation also use one copy. The **Print / Save PDF (1 page)** action fits the complete invoice onto one A4 page by measuring its height and reducing scale when necessary. No rows, totals, terms or signatures are omitted. Very long invoices consequently have smaller text. Use A4, scale 100%, and disable browser headers/footers when saving as PDF. Screen previews retain their normal readable scale. Thermal/challan copy settings remain unchanged.
+
+Deploy backend first, then frontend from this PR. No SQL migration is required: quotation defaults use existing org_settings JSON and optional party fields already support blanks. Posted invoices and existing party/quotation data are not rewritten. Browser-generated PDF pagination should be visually checked in the production browser; automated tests cover the fitting calculation, measurement event and single-copy DOM output.

@@ -176,6 +176,7 @@ export const api = {
         ? http("PUT", `/masters/${kind}/${row.id}`, row)
         : http("POST", `/masters/${kind}`, row),
 
+  getQuotationDefaults: (): Promise<{ terms: string; notes: string }> => usingMock ? mock.getSettings().then(s => ({ terms: s.quotationTerms ?? "", notes: s.quotationNotes ?? "" })) : http("GET", "/quotation-defaults"),
   listQuotations: (): Promise<Quotation[]> => usingMock ? mock.listQuotations() : http("GET", "/quotations"),
   getQuotation: (id: string): Promise<Quotation> => usingMock ? mock.getQuotation(id) : http("GET", `/quotations/${id}`),
   saveQuotation: (input: QuotationInput): Promise<Quotation> => usingMock ? mock.saveQuotation(input) : http(input.id ? "PUT" : "POST", input.id ? `/quotations/${input.id}` : "/quotations", input),

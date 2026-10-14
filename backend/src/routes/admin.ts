@@ -122,6 +122,7 @@ adminRouter.put("/settings", h(async (req) => {
   requirePerm(req.ctx, "settings", "Only the Owner can change settings");
   const input = z.object({
     legalName: z.string().min(1), tradeName: z.string(), gstin: z.string(), pan: z.string(), address: z.string(), stateCode: z.string(), phone: z.string(), email: z.string(),
+    quotationTerms: z.string().max(2000).default(""), quotationNotes: z.string().max(2000).default(""),
     bankName: z.string(), bankAccount: z.string(), ifsc: z.string(), invoiceTerms: z.string(), jurisdiction: z.string(),
     fyName: z.string(), fyStart: z.string(), fyEnd: z.string(), fyStatus: z.enum(["open", "closed"]),
     composition: z.boolean(), ewbThreshold: z.number(), einvoiceThreshold: z.number().min(0), roundOff: z.enum(["nearest_rupee", "none"]), adjApprovalLimit: z.number().min(0, "Approval limit can't be negative"),

@@ -34,6 +34,7 @@ const READ_ROLES: [RegExp, Role[]][] = [
   [/^\/items(?:\/|$)/, ["Owner", "Manager", "Storekeeper", "Sales", "Accountant"]],
   [/^\/parties(?:\/|$)/, ["Owner", "Manager", "Sales", "Accountant"]],
   [/^\/masters(?:\/|$)/, ["Owner", "Manager"]],
+  [/^\/quotation-defaults$/, ["Owner", "Manager", "Sales", "Accountant"]],
   [/^\/quotations(?:\/|$)/, ["Owner", "Manager", "Sales", "Accountant"]],
   [/^\/sales-orders(?:\/|$)/, ["Owner", "Manager", "Sales"]],
   [/^\/challans(?:\/|$)/, ["Owner", "Manager", "Storekeeper", "Driver"]],

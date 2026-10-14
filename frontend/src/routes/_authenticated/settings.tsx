@@ -73,6 +73,8 @@ function Form({ initial }: { initial: OrgSettings }) {
           <Field label="Address" className="md:col-span-2"><Textarea value={f.address} onChange={(e) => set({ address: e.target.value })} /></Field>
           {txt("phone", "Phone", "num")}{txt("email", "Email")}
           {txt("bankName", "Bank and branch")}{txt("bankAccount", "Account number", "num")}{txt("ifsc", "IFSC", "num uppercase")}{txt("jurisdiction", "Jurisdiction")}
+          <Field label="Default quotation terms and conditions" className="md:col-span-2"><Textarea value={f.quotationTerms ?? ""} maxLength={2000} onChange={e => set({ quotationTerms: e.target.value })}/></Field>
+          <Field label="Default quotation notes" className="md:col-span-2"><Textarea value={f.quotationNotes ?? ""} maxLength={2000} onChange={e => set({ quotationNotes: e.target.value })}/></Field>
           <Field label="Invoice terms" className="md:col-span-2"><Textarea value={f.invoiceTerms} onChange={(e) => set({ invoiceTerms: e.target.value })} /></Field>
         </TabsContent>
         <TabsContent value="fy" className="grid gap-4 rounded-lg border bg-card p-5 md:grid-cols-4">

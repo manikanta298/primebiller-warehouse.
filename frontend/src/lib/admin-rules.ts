@@ -35,6 +35,7 @@ function validDay(value: string): boolean {
 }
 
 export function settingsProblems(input: OrgSettingsInput): string[] {
+  if ((input.quotationTerms?.length ?? 0) > 2000 || (input.quotationNotes?.length ?? 0) > 2000) return ["Quotation terms and notes must be at most 2,000 characters"];
   const p: string[] = [];
   if (!input.legalName.trim() || input.legalName.trim().length > 160) p.push("Legal name is required (maximum 160 characters)");
   if (!isValidGstin(input.gstin)) p.push("GSTIN is not valid");

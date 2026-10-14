@@ -12,3 +12,9 @@ export function invoiceAmountWords(amount: number): string {
   }
   return `Rupees ${words(Math.floor(paise / 100))}${paise % 100 ? ` and ${words(paise % 100)} Paise` : ""} Only`;
 }
+
+/** A4 height less 12mm margins on both sides and a 2mm pagination buffer. */
+export function singlePageInvoiceScale(height: number): number {
+  if (!Number.isFinite(height) || height <= 0) return 1;
+  return Math.min(1, Math.max(0.0001, Math.floor(((271 * 96 / 25.4) / height) * 10000) / 10000));
+}
