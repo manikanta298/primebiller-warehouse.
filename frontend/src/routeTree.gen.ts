@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedCaRouteImport } from './routes/_authenticated/ca'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedFindItemsRouteImport } from './routes/_authenticated/find-items'
 import { Route as AuthenticatedImportRouteImport } from './routes/_authenticated/import'
 import { Route as AuthenticatedMastersRouteImport } from './routes/_authenticated/masters'
 import { Route as AuthenticatedNoAccessRouteImport } from './routes/_authenticated/no-access'
@@ -87,6 +88,11 @@ const AuthenticatedCaRoute = AuthenticatedCaRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedFindItemsRoute = AuthenticatedFindItemsRouteImport.update({
+  id: '/find-items',
+  path: '/find-items',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedImportRoute = AuthenticatedImportRouteImport.update({
@@ -309,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AuthenticatedAlertsRoute
   '/ca': typeof AuthenticatedCaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/find-items': typeof AuthenticatedFindItemsRoute
   '/import': typeof AuthenticatedImportRoute
   '/masters': typeof AuthenticatedMastersRoute
   '/no-access': typeof AuthenticatedNoAccessRoute
@@ -355,6 +362,7 @@ export interface FileRoutesByTo {
   '/alerts': typeof AuthenticatedAlertsRoute
   '/ca': typeof AuthenticatedCaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/find-items': typeof AuthenticatedFindItemsRoute
   '/import': typeof AuthenticatedImportRoute
   '/masters': typeof AuthenticatedMastersRoute
   '/no-access': typeof AuthenticatedNoAccessRoute
@@ -402,6 +410,7 @@ export interface FileRoutesById {
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/ca': typeof AuthenticatedCaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/find-items': typeof AuthenticatedFindItemsRoute
   '/_authenticated/import': typeof AuthenticatedImportRoute
   '/_authenticated/masters': typeof AuthenticatedMastersRoute
   '/_authenticated/no-access': typeof AuthenticatedNoAccessRoute
@@ -450,6 +459,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/ca'
     | '/dashboard'
+    | '/find-items'
     | '/import'
     | '/masters'
     | '/no-access'
@@ -496,6 +506,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/ca'
     | '/dashboard'
+    | '/find-items'
     | '/import'
     | '/masters'
     | '/no-access'
@@ -542,6 +553,7 @@ export interface FileRouteTypes {
     | '/_authenticated/alerts'
     | '/_authenticated/ca'
     | '/_authenticated/dashboard'
+    | '/_authenticated/find-items'
     | '/_authenticated/import'
     | '/_authenticated/masters'
     | '/_authenticated/no-access'
@@ -638,6 +650,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/find-items': {
+      id: '/_authenticated/find-items'
+      path: '/find-items'
+      fullPath: '/find-items'
+      preLoaderRoute: typeof AuthenticatedFindItemsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/import': {
@@ -926,6 +945,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedCaRoute: typeof AuthenticatedCaRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedFindItemsRoute: typeof AuthenticatedFindItemsRoute
   AuthenticatedImportRoute: typeof AuthenticatedImportRoute
   AuthenticatedMastersRoute: typeof AuthenticatedMastersRoute
   AuthenticatedNoAccessRoute: typeof AuthenticatedNoAccessRoute
@@ -968,6 +988,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedCaRoute: AuthenticatedCaRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedFindItemsRoute: AuthenticatedFindItemsRoute,
   AuthenticatedImportRoute: AuthenticatedImportRoute,
   AuthenticatedMastersRoute: AuthenticatedMastersRoute,
   AuthenticatedNoAccessRoute: AuthenticatedNoAccessRoute,

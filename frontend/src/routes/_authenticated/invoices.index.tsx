@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -77,9 +78,9 @@ function InvoiceList() {
             <tbody>
               {result.rows.map((i) => (
                 <tr key={i.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => navigate({ to: "/invoices/$id", params: { id: i.id } })}>
-                  <td className="num px-4 py-2.5 font-medium">{i.number}</td>
+                  <td className="num px-4 py-2.5 font-medium"><SearchHighlight text={i.number ?? ""} query={search}/></td>
                   <td className="num px-4 py-2.5">{formatDate(i.date)}</td>
-                  <td className="px-4 py-2.5">{i.customerName}</td>
+                  <td className="px-4 py-2.5"><SearchHighlight text={i.customerName ?? ""} query={search}/></td>
                   <td className="num px-4 py-2.5 text-xs text-muted-foreground">{i.challans.map((c) => c.number).join(", ")}</td>
                   <td className="num px-4 py-2.5">{formatDate(i.dueDate)}</td>
                   <td className="num px-4 py-2.5 text-right">{formatINR(i.grandTotal, 0)}</td>

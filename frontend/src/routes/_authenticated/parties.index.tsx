@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -90,7 +91,7 @@ function PartiesPage() {
                 return (
                   <tr key={p.id} className="border-t hover:bg-muted/40">
                     <td className="px-4 py-2.5">
-                      <Link to="/parties/$id" params={{ id: p.id }} className="font-medium hover:text-primary">{p.name}</Link>
+                      <Link to="/parties/$id" params={{ id: p.id }} className="font-medium hover:text-primary"><SearchHighlight text={p.name ?? ""} query={q}/></Link>
                       <div className="text-xs text-muted-foreground">
                         {KIND_LABEL[p.kind]} · {p.city || "No city"}
                         {p.blocked && <span className="ml-1.5 rounded bg-destructive/10 px-1.5 text-destructive">Blocked</span>}

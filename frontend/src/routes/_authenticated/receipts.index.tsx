@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -68,9 +69,9 @@ function Receipts() {
             </tr></thead>
             <tbody>{receipts.slice(offset, offset + PAGE_SIZE).map((r) => (
               <tr key={r.id} className="border-t align-top">
-                <td className="num whitespace-nowrap px-4 py-2.5 font-medium">{r.number}</td>
+                <td className="num whitespace-nowrap px-4 py-2.5 font-medium"><SearchHighlight text={r.number ?? ""} query={search}/></td>
                 <td className="num whitespace-nowrap px-4 py-2.5">{formatDate(r.date)}</td>
-                <td className="px-4 py-2.5">{r.customerName}</td>
+                <td className="px-4 py-2.5"><SearchHighlight text={r.customerName ?? ""} query={search}/></td>
                 <td className="px-4 py-2.5">{MODE[r.mode] ?? r.mode}</td>
                 <td className="num px-4 py-2.5 text-xs text-muted-foreground">{r.reference || "—"}</td>
                 <td className="px-4 py-2.5 text-xs">
@@ -93,7 +94,7 @@ function Receipts() {
               <tr key={a.id} className="border-t">
                 <td className="num px-4 py-2.5 font-medium">{a.receiptNo}</td>
                 <td className="num px-4 py-2.5">{formatDate(a.date)}</td>
-                <td className="px-4 py-2.5"><Link to="/parties/$id" params={{ id: a.customerId }} className="hover:underline">{a.customerName}</Link></td>
+                <td className="px-4 py-2.5"><Link to="/parties/$id" params={{ id: a.customerId }} className="hover:underline"><SearchHighlight text={a.customerName ?? ""} query={search}/></Link></td>
                 <td className="num px-4 py-2.5 text-right">{formatINR(a.amount, 0)}</td>
                 <td className="num px-4 py-2.5 text-right font-medium">{formatINR(a.remaining, 0)}</td>
               </tr>

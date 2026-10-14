@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -129,9 +130,9 @@ function FindDocument() {
               {q.data.map((d) => (
                 <tr key={d.type + d.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => open(d)}>
                   <td className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">{d.type}</td>
-                  <td className="num whitespace-nowrap px-4 py-2.5 font-medium">{d.number}</td>
+                  <td className="num whitespace-nowrap px-4 py-2.5 font-medium"><SearchHighlight text={d.number ?? ""} query={text}/></td>
                   <td className="num whitespace-nowrap px-4 py-2.5">{formatDate(d.date)}</td>
-                  <td className="px-4 py-2.5">{d.party}</td>
+                  <td className="px-4 py-2.5"><SearchHighlight text={d.party} query={text}/></td>
                   <td className="num px-4 py-2.5 text-right">{formatINR(d.amount, 0)}</td>
                   <td className="px-4 py-2.5"><StatusBadge status={d.status} /></td>
                 </tr>

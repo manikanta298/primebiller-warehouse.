@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -155,10 +156,10 @@ function ItemsPage() {
                     <tr key={i.id} className="border-t hover:bg-muted/40">
                       <td className="px-4 py-2.5">
                         <Link to="/items/$id" params={{ id: i.id }} className="font-medium hover:text-primary">
-                          {i.name}
+                          <SearchHighlight text={i.name ?? ""} query={q}/>
                         </Link>
                         {!i.active && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Inactive</span>}
-                        <div className="num text-xs text-muted-foreground">{i.sku}</div>
+                        <div className="num text-xs text-muted-foreground"><SearchHighlight text={i.sku ?? ""} query={q}/></div>
                       </td>
                       <td className="num">{i.hsn}</td>
                       <td className="num">{i.gstRate}%</td>

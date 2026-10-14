@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { Children, isValidElement, type ReactNode } from "react";
+import { SearchableSelect } from "./searchable-select";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,14 @@ export function Field({ label, hint, error, children, className }: { label: stri
 }
 
 export function NativeSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const options = Children.toArray(props.children).filter(isValidElement).map(child => {
+    const option = child.props as { value?: string; children?: ReactNode; disabled?: boolean };
+    const text = Children.toArray(option.children).filter(x => typeof x === "string" || typeof x === "number").join("");
+    return { value: String(option.value ?? ""), label: text, disabled: !!option.disabled };
+  });
+  const prompt = options.find(o => !o.value)?.label ?? "";
+  const label = props["aria-label"] ?? (/customer/i.test(prompt) ? "Customer" : /supplier/i.test(prompt) ? "Supplier" : /item/i.test(prompt) ? "Item" : "");
+  if (/customer|supplier|^item(?: \d+)?$/i.test(label)) return <SearchableSelect label={label} searchLabel={`Search ${label.toLowerCase()}`} placeholder={prompt || "Choose…"} value={String(props.value ?? "")} disabled={!!props.disabled} required={!!props.required} options={options.filter(o => o.value)} onChange={value => props.onChange?.({ target: { value }, currentTarget: { value } } as React.ChangeEvent<HTMLSelectElement>)} />;
   return (
     <select
       {...props}

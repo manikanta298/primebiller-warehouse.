@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -81,9 +82,9 @@ function Purchases() {
             const ord = p.lines.reduce((a, l) => a + l.qty, 0);
             const rec = p.lines.reduce((a, l) => a + l.receivedQty, 0);
             return <tr key={p.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => navigate({ to: "/purchases/$id", params: { id: p.id } })}>
-              <td className="num whitespace-nowrap px-4 py-2.5 font-medium">{p.number}</td>
+              <td className="num whitespace-nowrap px-4 py-2.5 font-medium"><SearchHighlight text={p.number ?? ""} query={search}/></td>
               <td className="num whitespace-nowrap px-4 py-2.5">{formatDate(p.date)}</td>
-              <td className="px-4 py-2.5">{p.supplierName}</td>
+              <td className="px-4 py-2.5"><SearchHighlight text={p.supplierName ?? ""} query={search}/></td>
               <td className="px-4 py-2.5">{p.godownName}</td>
               <td className="num px-4 py-2.5">{ord ? Math.round((rec / ord) * 100) : 0}%</td>
               <td className="num px-4 py-2.5 text-right">{formatINR(p.grandTotal, 0)}</td>
@@ -98,9 +99,9 @@ function Purchases() {
             <th className="px-4 py-2.5 text-right font-semibold">Total</th>
           </tr></thead><tbody>{grns.slice(offset, offset + PAGE_SIZE).map((g) => (
             <tr key={g.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => navigate({ to: "/purchases/grn/$id", params: { id: g.id } })}>
-              <td className="num whitespace-nowrap px-4 py-2.5 font-medium">{g.number}</td>
+              <td className="num whitespace-nowrap px-4 py-2.5 font-medium"><SearchHighlight text={g.number ?? ""} query={search}/></td>
               <td className="num whitespace-nowrap px-4 py-2.5">{formatDate(g.date)}</td>
-              <td className="px-4 py-2.5">{g.supplierName}</td>
+              <td className="px-4 py-2.5"><SearchHighlight text={g.supplierName ?? ""} query={search}/></td>
               <td className="num px-4 py-2.5">{g.supplierInvoiceNo}</td>
               <td className="num px-4 py-2.5 text-muted-foreground">{g.poNumber ?? "Direct"}</td>
               <td className="px-4 py-2.5">{g.godownName}</td>

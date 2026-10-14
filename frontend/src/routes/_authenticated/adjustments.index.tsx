@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -63,7 +64,7 @@ function Adjustments() {
             <tbody>
               {pageRows.map((a) => (
                 <tr key={a.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => navigate({ to: "/adjustments/$id", params: { id: a.id } })}>
-                  <td className="num whitespace-nowrap px-4 py-2.5 font-medium">{a.number}</td>
+                  <td className="num whitespace-nowrap px-4 py-2.5 font-medium"><SearchHighlight text={a.number ?? ""} query={search}/></td>
                   <td className="num whitespace-nowrap px-4 py-2.5">{formatDate(a.date)}</td>
                   <td className="px-4 py-2.5">{a.godownName}</td>
                   <td className="px-4 py-2.5">{reasonLabel(a.reason)}</td>

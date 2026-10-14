@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -112,7 +113,7 @@ function SalesOrdersPage() {
                 >
                   <td className="num px-4 py-3 text-xs">{o.number ?? <span className="text-muted-foreground">Draft</span>}</td>
                   <td>{formatDate(o.date)}</td>
-                  <td className="font-medium">{o.customerName}</td>
+                  <td className="font-medium"><SearchHighlight text={o.customerName ?? ""} query={search}/></td>
                   <td className="text-xs text-muted-foreground">{o.placeOfSupplyCode === stateCode ? "CGST + SGST" : "IGST"}</td>
                   <td><StatusBadge status={o.status} /></td>
                   <td className="num px-4 text-right">{formatINR(o.grandTotal)}</td>

@@ -1,3 +1,4 @@
+import { NativeSelect } from "@/components/app/form-bits";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -115,10 +116,10 @@ function LedgerPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3">
-        <select aria-label="Item" className={sel} value={search.item ?? ""} onChange={(e) => set({ item: e.target.value || undefined, batch: undefined })}>
+        <NativeSelect aria-label="Item" className={sel} value={search.item ?? ""} onChange={(e) => set({ item: e.target.value || undefined, batch: undefined })}>
           <option value="">All items</option>
           {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-        </select>
+        </NativeSelect>
         <select aria-label="Godown" className={sel} value={godownId} onChange={(e) => set({ godown: e.target.value })}>
           <option value="all">All godowns</option>
           {godowns.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}

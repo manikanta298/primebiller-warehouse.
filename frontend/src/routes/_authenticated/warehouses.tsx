@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -86,7 +87,7 @@ function WarehousesPage() {
                 <div className="flex items-center gap-2.5">
                   <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary"><Warehouse className="size-4" /></div>
                   <div>
-                    <div className="font-semibold">{g.name}</div>
+                    <div className="font-semibold"><SearchHighlight text={g.name ?? ""} query={query}/></div>
                     <div className="text-xs text-muted-foreground"><span className="num">{g.code}</span> · {TYPES[g.type ?? "godown"]}</div>
                   </div>
                 </div>
@@ -180,7 +181,7 @@ function WarehouseDashboard({ orgId, warehouse, canAdjust }: { orgId: string; wa
           <NativeSelect value={filter} onChange={(e) => setFilter(e.target.value as WarehouseStockFilter)} aria-label="Filter warehouse stock" className="w-44"><option value="all">All products</option><option value="available">Free stock &gt; 0</option><option value="zero">Out of free stock</option><option value="reserved">Has reservations</option></NativeSelect>
         </div>
         <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><thead className="bg-muted/60 text-left"><tr><th className="p-3">Product / SKU</th><th className="p-3 text-right">On hand</th><th className="p-3 text-right">Reserved</th><th className="p-3 text-right">Free</th><th className="p-3 text-right">Value</th><th className="p-3 text-right">Adjust</th></tr></thead><tbody>
-          {rows.map((r) => <tr key={r.item.id} className="border-t"><td className="p-3"><p className="font-medium">{r.item.name}</p><p className="text-xs text-muted-foreground">{r.item.sku} · {r.item.baseUom}{r.item.active ? "" : " · Inactive"}</p></td><td className="num p-3 text-right">{formatQty(r.onHand, 3)}</td><td className="num p-3 text-right">{formatQty(r.held, 3)}</td><td className="num p-3 text-right">{formatQty(r.free, 3)}</td><td className="num p-3 text-right">{formatINR(r.value)}</td><td className="p-3"><div className="flex justify-end gap-1"><Button size="sm" variant="outline" aria-label={`Add stock for ${r.item.name}`} disabled={!canAdjust || !warehouse.active || !r.item.active} onClick={() => setEditingStock({ item: r.item, direction: "up" })}><Plus className="size-4" /></Button><Button size="sm" variant="outline" aria-label={`Remove stock for ${r.item.name}`} disabled={!canAdjust || !warehouse.active || !r.item.active || r.free <= 0} onClick={() => setEditingStock({ item: r.item, direction: "down" })}><Minus className="size-4" /></Button></div></td></tr>)}
+          {rows.map((r) => <tr key={r.item.id} className="border-t"><td className="p-3"><p className="font-medium"><SearchHighlight text={r.item.name ?? ""} query={query}/></p><p className="text-xs text-muted-foreground">{r.item.sku} · {r.item.baseUom}{r.item.active ? "" : " · Inactive"}</p></td><td className="num p-3 text-right">{formatQty(r.onHand, 3)}</td><td className="num p-3 text-right">{formatQty(r.held, 3)}</td><td className="num p-3 text-right">{formatQty(r.free, 3)}</td><td className="num p-3 text-right">{formatINR(r.value)}</td><td className="p-3"><div className="flex justify-end gap-1"><Button size="sm" variant="outline" aria-label={`Add stock for ${r.item.name}`} disabled={!canAdjust || !warehouse.active || !r.item.active} onClick={() => setEditingStock({ item: r.item, direction: "up" })}><Plus className="size-4" /></Button><Button size="sm" variant="outline" aria-label={`Remove stock for ${r.item.name}`} disabled={!canAdjust || !warehouse.active || !r.item.active || r.free <= 0} onClick={() => setEditingStock({ item: r.item, direction: "down" })}><Minus className="size-4" /></Button></div></td></tr>)}
           {rows.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No matching products.</td></tr>}
         </tbody></table></div>
       </section>}
