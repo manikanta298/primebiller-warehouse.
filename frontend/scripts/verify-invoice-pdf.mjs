@@ -19,7 +19,7 @@ run(browser, ['--version']);
 const vite = await createServer({ root, configFile: false, plugins: [react()], resolve: { alias: { '@': resolve(root, 'src') } }, server: { middlewareMode: true, hmr: false } });
 try {
   const { InvoiceSheet } = await vite.ssrLoadModule('/src/components/app/InvoiceSheet.tsx');
-  const { singlePageInvoiceScale } = await vite.ssrLoadModule('/src/lib/invoice-print.ts');
+  const { singlePageInvoiceScale, fitInvoiceSheet } = await vite.ssrLoadModule('/src/lib/invoice-print.ts');
   const { PRINT_DEFAULTS } = await vite.ssrLoadModule('/src/lib/print-rules.ts');
   const styles = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
   const printStyles = styles.slice(styles.indexOf('@media screen { .print-document'), styles.indexOf('/* Keep wide tables'));
@@ -29,7 +29,7 @@ try {
     const invoice = { id: 'pdf-fixture', number: 'INV/26-27/00001', date: '2026-10-14', dueDate: '2026-11-13', customerId: 'test-party', customerName: 'PDF Test Customer', billingAddress: 'Test billing address', placeOfSupplyCode: '36', placeOfSupplyName: 'Telangana', supply: 'intra', challans: [], lines: Array.from({ length: count }, (_, index) => ({ soLineId: `line-${index}`, itemId: `item-${index}`, itemName: `PDF Item ${String(index + 1).padStart(3, '0')}`, hsn: '1234', uom: 'PCS', qty: 1, rate: 100, discountPct: 0, gstRate: 18, allocations: [] })), taxable: count * 100, cgst: count * 9, sgst: count * 9, igst: 0, roundOff: 0, grandTotal: count * 118, byRate: [], advances: [], paid: 0, balance: count * 118, status: 'awaiting_payment', createdBy: 'Test Owner' };
     const markup = renderToStaticMarkup(createElement(InvoiceSheet, { invoice, settings, profile: { ...PRINT_DEFAULTS.B, copies: 4 } }));
     const html = resolve(output, `invoice-${count}.html`), pdf = resolve(output, `invoice-${count}.pdf`);
-    writeFileSync(html, `<!doctype html><html><head><meta charset="utf-8"><style>@page { size: A4; margin: 12mm; } ${printStyles}\n${sheetStyles}</style></head><body><div class="print-document print-a4 invoice-single-page">${markup}</div><script>const scale = (${singlePageInvoiceScale.toString()}); function fit(){const sheet=document.querySelector('.invoice-sheet');sheet.style.zoom='1';sheet.style.zoom=String(scale(sheet.getBoundingClientRect().height));}window.addEventListener('beforeprint',fit);fit();</script></body></html>`);
+    writeFileSync(html, `<!doctype html><html><head><meta charset="utf-8"><style>@page { size: A4; margin: 12mm; } ${printStyles}\n${sheetStyles}</style></head><body><div class="print-document print-a4 invoice-single-page">${markup}</div><script>const scale = (${singlePageInvoiceScale.toString()}); const singlePageInvoiceScale=scale;const fitInvoiceSheet=(${fitInvoiceSheet.toString()});function fit(){fitInvoiceSheet(document.querySelector('.invoice-sheet'));}window.addEventListener('beforeprint',fit);fit();</script></body></html>`);
     run(browser, ['--headless', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-pdf-header-footer', '--virtual-time-budget=1500', `--user-data-dir=${resolve(output, `browser-${count}`)}`, `--print-to-pdf=${pdf}`, `file://${html}`]);
     const info = run('pdfinfo', [pdf]);
     const text = run('pdftotext', ['-layout', pdf, '-']);

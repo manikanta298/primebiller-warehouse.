@@ -18,3 +18,16 @@ export function singlePageInvoiceScale(height: number): number {
   if (!Number.isFinite(height) || height <= 0) return 1;
   return Math.min(1, Math.max(0.0001, Math.floor(((271 * 96 / 25.4) / height) * 10000) / 10000));
 }
+
+/** Zoom can alter table wrapping; measure again instead of assuming a linear height. */
+export function fitInvoiceSheet(sheet: { style: { zoom: string }; getBoundingClientRect: () => { height: number } }): void {
+  sheet.style.zoom = "1";
+  let scale = 1;
+  const available = 271 * 96 / 25.4;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const height = sheet.getBoundingClientRect().height;
+    if (!Number.isFinite(height) || height <= 0 || height <= available) break;
+    scale = Math.max(0.0001, Math.floor(scale * singlePageInvoiceScale(height) * 0.98 * 1e6) / 1e6);
+    sheet.style.zoom = String(scale);
+  }
+}
