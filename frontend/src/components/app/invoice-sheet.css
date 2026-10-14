@@ -63,5 +63,6 @@
   .print-document.invoice-single-page { display: block; position: fixed; left: -10000px; top: 0; width: 186mm; visibility: hidden; pointer-events: none; }
 }
 @media print {
+  .print-document.invoice-single-page { position: fixed !important; left: 0; top: 0; width: 186mm !important; margin: 0 !important; }
   .invoice-single-page .invoice-sheet { break-after: auto !important; break-inside: avoid; }
 }

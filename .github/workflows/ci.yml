@@ -45,6 +45,7 @@ jobs:
         if: always()
         with:
           name: invoice-pdf-verification
+          include-hidden-files: true
           path: frontend/.invoice-pdf-check/*.pdf
           if-no-files-found: ignore
       - name: Compile Vercel frontend

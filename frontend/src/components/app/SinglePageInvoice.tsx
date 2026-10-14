@@ -20,5 +20,5 @@ export function SinglePageInvoice({ invoice, settings, profile }: { invoice: Inv
     document.fonts?.ready.then(fit);
     return () => { alive = false; window.removeEventListener("beforeprint", fit); window.removeEventListener("resize", fit); };
   }, [invoice, settings, profile]);
-  return <div ref={root} className="print-document print-a4 invoice-single-page" aria-label="Invoice print layout"><InvoiceSheet invoice={invoice} settings={settings} profile={profile} copy="Original"/></div>;
+  return <div ref={root} className="print-document print-a4 invoice-single-page" aria-label="Invoice print layout"><style>{"@page { size: A4; margin: 12mm; }"}</style><InvoiceSheet invoice={invoice} settings={settings} profile={profile} copy="Original"/></div>;
 }
