@@ -12,7 +12,7 @@ describe("two-letter autocomplete", () => {
   const pick=vi.fn();render(<SearchableSelect label="Customer" searchLabel="Search customers" placeholder="Choose customer" value="" options={options} onChange={pick}/>);
   const input=screen.getByLabelText('Search customers');fireEvent.change(input,{target:{value:'r'}});expect(screen.queryByRole('listbox')).toBeNull();
   fireEvent.change(input,{target:{value:'RA'}});const list=screen.getByRole('listbox');
-  expect(within(list).getAllByRole('option')[0]).toHaveAttribute('aria-selected','true');expect(list.querySelector('mark')?.textContent).toBe('Ra');expect(pick).not.toHaveBeenCalled();
+  expect(within(list).getAllByRole('option')[0]).toHaveAttribute('aria-selected','true');expect(list.querySelector('mark')?.textContent).toBe('Ra');expect(list.parentElement).toBe(document.body);expect(pick).not.toHaveBeenCalled();
   fireEvent.keyDown(input,{key:'Enter'});expect(pick).toHaveBeenCalledWith('1');expect(screen.queryByRole('listbox')).toBeNull();
  });
  it("supports arrows, Escape, no match, disabled entries and touch selection",()=>{

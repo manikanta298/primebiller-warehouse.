@@ -1,9 +1,10 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { Item } from "@/api/types";
 import { stockFor } from "@/lib/stock";
 import { formatINR, formatQty } from "@/lib/format";
+import { SearchSuggestions } from "./SearchSuggestions";
 import { SearchHighlight } from "./SearchHighlight";
 import { matchesSearch, searchRank, searchReady } from "@/lib/search-match";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ export function ItemPicker({ value, godownId, onPick, onClear, disabled }: { val
   const [q, setQ] = useState(value);
   const [open, setOpen] = useState(false);
   const listId = useId();
+  const anchor = useRef<HTMLInputElement>(null);
   const [hi, setHi] = useState(0);
   // Preserve what the user is typing when onClear clears the previous selection.
   useEffect(() => { if (value) setQ(value); }, [value]);
@@ -30,7 +32,7 @@ export function ItemPicker({ value, godownId, onPick, onClear, disabled }: { val
 
   return (
     <div className="relative">
-      <input
+      <input ref={anchor}
         role="combobox"
         aria-label="Search item"
         aria-autocomplete="list"
@@ -59,7 +61,7 @@ export function ItemPicker({ value, godownId, onPick, onClear, disabled }: { val
         className="h-8 w-full rounded border-0 bg-transparent px-2 text-sm outline-none focus:bg-card focus:ring-1 focus:ring-ring disabled:opacity-100"
       />
       {open && searchReady(q) && !disabled && list.length > 0 && (
-        <div id={listId} role="listbox" aria-label="Matching items" className="absolute left-0 top-9 z-40 w-full min-w-[18rem] max-w-[28rem] overflow-hidden rounded-md border bg-popover shadow-lg">
+        <SearchSuggestions anchor={anchor} id={listId} label="Matching items" minWidth={288}>
           <div className="eyebrow grid grid-cols-[1fr_5rem_5rem] gap-2 border-b px-3 py-1.5">
             <span>Item</span><span className="text-right">On hand</span><span className="text-right">Free</span>
           </div>
@@ -69,7 +71,7 @@ export function ItemPicker({ value, godownId, onPick, onClear, disabled }: { val
               <button
                 type="button"
                 key={i.id}
-                role="option" aria-label={i.name} id={`${listId}-${idx}`} aria-selected={hi === idx}
+                role="option" tabIndex={-1} aria-label={i.name} id={`${listId}-${idx}`} aria-selected={hi === idx}
                 onPointerDown={event => event.preventDefault()} onClick={() => pick(i)}
                 onMouseEnter={() => setHi(idx)}
                 className={cn("grid w-full grid-cols-[1fr_5rem_5rem] gap-2 px-3 py-2 text-left text-sm", hi === idx && "bg-accent")}
@@ -83,7 +85,7 @@ export function ItemPicker({ value, godownId, onPick, onClear, disabled }: { val
               </button>
             );
           })}
-        </div>
+        </SearchSuggestions>
       )}
     </div>
   );
