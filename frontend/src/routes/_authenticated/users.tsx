@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -63,7 +64,7 @@ function Users() {
                 <tbody>
                   {visible.map((u) => (
                     <tr key={u.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setEdit(toInput(u))}>
-                      <td className="px-4 py-2.5 font-medium">{u.name}</td>
+                      <td className="px-4 py-2.5 font-medium"><SearchHighlight text={u.name ?? ""} query={search}/></td>
                       <td className="px-4 py-2.5">{u.email}</td>
                       <td className="num px-4 py-2.5">{u.mobile}</td>
                       <td className="px-4 py-2.5">{u.role}</td>

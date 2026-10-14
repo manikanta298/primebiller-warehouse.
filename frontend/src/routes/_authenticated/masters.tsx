@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -114,7 +115,7 @@ function UomTable({ onEdit, query, status }: TableProps) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} onClick={() => onEdit({ ...r })} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit({ ...r }); } }} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                <td className={`${td} num font-medium`}>{r.code}</td><td className={td}>{r.name}</td>
+                <td className={`${td} num font-medium`}><SearchHighlight text={r.code ?? ""} query={query}/></td><td className={td}><SearchHighlight text={r.name ?? ""} query={query}/></td>
                 <td className={`${td} capitalize text-muted-foreground`}>{r.category}</td><td className={`${td} num`}>{r.decimals}</td>
                 <td className={td}><ActiveDot active={r.active} /></td>
               </tr>
@@ -141,7 +142,7 @@ function CategoryTable({ onEdit, query, status }: TableProps) {
                 <tr key={r.id} onClick={() => onEdit({ ...r })} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit({ ...r }); } }} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                   <td className={td} style={{ paddingLeft: 16 + depth * 24 }}>
                     {depth > 0 && <span className="mr-1.5 text-muted-foreground">└</span>}
-                    <span className={depth ? "" : "font-medium"}>{r.name}</span>
+                    <span className={depth ? "" : "font-medium"}><SearchHighlight text={r.name ?? ""} query={query}/></span>
                   </td>
                   <td className={`${td} num`}>{r.defaultHsn || "–"}</td><td className={`${td} num`}>{r.defaultGst}%</td>
                   <td className={td}><ActiveDot active={r.active} /></td>
@@ -166,7 +167,7 @@ function BrandTable({ onEdit, query, status }: TableProps) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} onClick={() => onEdit({ ...r })} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit({ ...r }); } }} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                <td className={`${td} font-medium`}>{r.name}</td><td className={td}><ActiveDot active={r.active} /></td>
+                <td className={`${td} font-medium`}><SearchHighlight text={r.name ?? ""} query={query}/></td><td className={td}><ActiveDot active={r.active} /></td>
               </tr>
             ))}
           </tbody>
@@ -187,7 +188,7 @@ function HsnTable({ onEdit, query, status }: TableProps) {
           <tbody>
             {[...rows].sort((a, b) => a.code.localeCompare(b.code) || b.effectiveFrom.localeCompare(a.effectiveFrom)).map((r) => (
               <tr key={r.id} onClick={() => onEdit({ ...r })} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit({ ...r }); } }} tabIndex={0} className="cursor-pointer border-t hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                <td className={`${td} num font-medium`}>{r.code}</td><td className={td}>{r.description}</td>
+                <td className={`${td} num font-medium`}><SearchHighlight text={r.code ?? ""} query={query}/></td><td className={td}>{r.description}</td>
                 <td className={`${td} num text-right`}>{r.gstRate}%</td><td className={`${td} num text-right text-muted-foreground`}>{r.cessPct}%</td>
                 <td className={`${td} num`}>{formatDate(r.effectiveFrom)}</td><td className={td}><ActiveDot active={r.active} /></td>
               </tr>

@@ -10,6 +10,7 @@ import { canOverrideCredit, computeTotals, creditCheck, supplyType, lineTaxable,
 import { formatDate, formatINR, formatQty } from "@/lib/format";
 import { ErrorState, LoadingRows } from "@/components/app/states";
 import { StatusBadge } from "@/components/app/StatusBadge";
+import { NativeSelect } from "@/components/app/form-bits";
 import { ItemPicker } from "@/components/app/ItemPicker";
 import { CreditOverrideDialog } from "@/components/app/CreditOverrideDialog";
 import { Button } from "@/components/ui/button";
@@ -221,7 +222,7 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
           <section className="grid gap-4 rounded-lg border bg-card p-5 md:grid-cols-4">
             <div className="space-y-1.5 md:col-span-2">
               <label className="text-xs text-muted-foreground">Customer</label>
-              <select
+              <NativeSelect aria-label="Customer"
                 disabled={!editable}
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
@@ -231,7 +232,7 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
                 {customers.map((c) => (
                   <option key={c.id} value={c.id} disabled={!!c.blocked}>{c.name} · {c.city}{c.blocked ? " (blocked)" : ""}</option>
                 ))}
-              </select>
+              </NativeSelect>
               {customer && <div className="num text-xs text-muted-foreground">{customer.gstin ?? "Unregistered"} · {customer.stateName} ({customer.stateCode})</div>}
             </div>
             <div className="space-y-1.5">

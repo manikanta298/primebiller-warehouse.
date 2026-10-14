@@ -12,7 +12,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 vi.mock("@/api/client", () => ({ usingMock: false, api: {
   listGodowns: async () => [], listNotifications: async () => [], getAlerts: async () => [],
-  listItems: async () => [{ id: "item1", name: "Test item", sku: "TEST" }], listSalesOrders: async () => [],
+  listParties: async () => [], listItems: async () => [{ id: "item1", name: "Test item", sku: "TEST" }], listSalesOrders: async () => [],
 } }));
 
 const session: Session = { token: "test", orgId: "org1", godownId: "all", orgs: [{ id: "org1", name: "A very long organisation name for responsive headers", gstin: "", stateCode: "", stateName: "" }], user: { id: "u1", name: "Test Owner", email: "owner@example.com", role: "Owner" } };
@@ -102,10 +102,10 @@ describe("Responsive app navigation", () => {
 
   it("search results respond to click activation used by touch and keyboard", async () => {
     shell();
-    const search = screen.getByRole("textbox", { name: "Search items, orders, customers" });
+    const search = screen.getByRole("combobox", { name: "Search items, orders, customers" });
     fireEvent.focus(search);
     fireEvent.change(search, { target: { value: "test" } });
-    const result = await screen.findByRole("button", { name: /Test item/ });
+    const result = await screen.findByRole("option", { name: /Test item/ });
     fireEvent.blur(search, { relatedTarget: result });
     expect(fireEvent.pointerDown(result, { pointerType: "touch", button: 0 })).toBe(false);
     tap(result);

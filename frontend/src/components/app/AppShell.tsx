@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, HelpCircle, LogOut, Search, Building2, Warehouse, Package, FileText, User, Menu } from "lucide-react";
+import { SearchHighlight } from "./SearchHighlight";
+import { matchesSearch, searchRank, searchReady } from "@/lib/search-match";
 import { NAV } from "@/lib/nav";
 import { canAccess, setSession, updateSession, type Session } from "@/lib/session";
 import { api, usingMock } from "@/api/client";
@@ -193,7 +195,7 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
         </DropdownMenuContent>
       </DropdownMenu>}
 
-      {!ca && <GlobalSearch />}
+      {!ca && <GlobalSearch session={session} />}
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <DropdownMenu>
@@ -249,7 +251,9 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
   );
 }
 
-function GlobalSearch() {
+function GlobalSearch({ session }: { session: Session }) {
+  const [active, setActive] = useState(0);
+  const listId = useId();
   const ref = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -267,10 +271,17 @@ function GlobalSearch() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const { data: items = [] } = useQuery({ queryKey: ["items", q], queryFn: () => api.listItems(q), enabled: q.length > 1 });
-  const { data: orders = [] } = useQuery({ queryKey: ["sales-orders", "all"], queryFn: () => api.listSalesOrders("all"), enabled: q.length > 1 });
-  const ql = q.toLowerCase();
-  const soHits = orders.filter((o) => `${o.number ?? "draft"} ${o.customerName}`.toLowerCase().includes(ql)).slice(0, 5);
+  const enabled = searchReady(q) && !!session.orgId;
+  const { data: items = [] } = useQuery({ queryKey: ["items", session.orgId, "global-search"], queryFn: () => api.listItems(), enabled: enabled && canAccess(session.user.role, "/items") });
+  const { data: orders = [] } = useQuery({ queryKey: ["sales-orders", session.orgId, "all"], queryFn: () => api.listSalesOrders("all"), enabled: enabled && canAccess(session.user.role, "/sales-orders") });
+  const { data: customers = [] } = useQuery({ queryKey: ["parties", session.orgId, "global-search"], queryFn: () => api.listParties(), enabled: enabled && canAccess(session.user.role, "/parties") });
+  const hits = [
+    ...(canAccess(session.user.role, "/items") ? items : []).filter(i => matchesSearch(`${i.name} ${i.sku} ${i.hsn}`, q)).slice(0,5).map(i => ({ key: `item-${i.id}`, name: i.name, detail: i.sku, open: () => navigate({ to: "/items/$id", params: { id: i.id } }) })),
+    ...(canAccess(session.user.role, "/sales-orders") ? orders : []).filter(o => matchesSearch(`${o.number ?? "draft"} ${o.customerName}`, q)).slice(0,5).map(o => ({ key: `order-${o.id}`, name: o.number ?? "Draft", detail: o.customerName, open: () => navigate({ to: "/sales-orders/$id", params: { id: o.id } }) })),
+    ...(canAccess(session.user.role, "/parties") ? customers : []).filter(c => matchesSearch(`${c.name} ${c.phone} ${c.gstin ?? ""}`, q)).slice(0,5).map(c => ({ key: `party-${c.id}`, name: c.name, detail: "Party", open: () => navigate({ to: "/parties/$id", params: { id: c.id } }) })),
+  ].sort((a,b) => searchRank(a.name,q) - searchRank(b.name,q));
+  const highlighted = Math.min(active, Math.max(0,hits.length - 1));
+  useEffect(() => { setQ(""); setOpen(false); setActive(0); }, [session.orgId]);
 
   return (
     <div className="relative ml-2 hidden min-w-0 flex-1 xl:block" onBlur={(event) => {
@@ -281,45 +292,25 @@ function GlobalSearch() {
         ref={ref}
         value={q}
         onChange={(e) => {
-          setQ(e.target.value);
+          setQ(e.target.value); setActive(0);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onKeyDown={(e) => e.key === "Escape" && ref.current?.blur()}
+        role="combobox" aria-autocomplete="list" aria-expanded={open && searchReady(q)} aria-controls={listId} aria-activedescendant={open && searchReady(q) && hits[highlighted] ? `${listId}-${highlighted}` : undefined}
+        onKeyDown={e => {
+          if (e.key === "Escape") { setOpen(false); return; }
+          if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); }
+          if (!open || !searchReady(q) || !hits.length) return;
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setActive(n => Math.max(0,Math.min(hits.length-1,n+(e.key === "ArrowDown" ? 1 : -1)))); }
+          if (e.key === "Enter") { e.preventDefault(); hits[highlighted]!.open(); setOpen(false); }
+        }}
         aria-label="Search items, orders, customers"
         placeholder="Search items, orders, customers"
         className="h-9 w-full rounded-md border bg-card pl-8 pr-10 text-sm outline-none focus:ring-1 focus:ring-ring"
       />
       <span className="kbd absolute right-2 top-1/2 -translate-y-1/2">/</span>
-      {open && q.length > 1 && (
-        <div className="absolute left-0 right-0 top-11 z-50 overflow-hidden rounded-md border bg-popover shadow-lg">
-          {items.length === 0 && soHits.length === 0 && <div className="px-3 py-4 text-sm text-muted-foreground">No matches for “{q}”</div>}
-          {items.slice(0, 5).map((i) => (
-            <button
-              key={i.id}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => navigate({ to: "/items/$id", params: { id: i.id } })}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
-            >
-              <Package className="size-4 text-muted-foreground" />
-              <span className="flex-1 truncate">{i.name}</span>
-              <span className="num text-xs text-muted-foreground">{i.sku}</span>
-            </button>
-          ))}
-          {soHits.map((o) => (
-            <button
-              key={o.id}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => navigate({ to: "/sales-orders/$id", params: { id: o.id } })}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
-            >
-              <FileText className="size-4 text-muted-foreground" />
-              <span className="num text-xs">{o.number ?? "Draft"}</span>
-              <span className="flex-1 truncate text-muted-foreground">{o.customerName}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {open && searchReady(q) && <div id={listId} role="listbox" aria-label="Global search matches" className="absolute left-0 right-0 top-11 z-50 max-h-80 overflow-y-auto rounded-md border bg-popover shadow-lg">{!hits.length && <p className="px-3 py-4 text-sm text-muted-foreground">No matches for “{q}”</p>}{hits.map((hit,index) => <button type="button" role="option" aria-label={`${hit.name} ${hit.detail}`} id={`${listId}-${index}`} aria-selected={highlighted === index} key={hit.key} onPointerDown={e => e.preventDefault()} onPointerMove={() => setActive(index)} onClick={() => { hit.open(); setOpen(false); }} className={`flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm ${highlighted === index ? "bg-accent" : "hover:bg-accent"}`}><span><SearchHighlight text={hit.name} query={q}/></span><span className="text-xs text-muted-foreground"><SearchHighlight text={hit.detail} query={q}/></span></button>)}</div>}
+
     </div>
   );
 }

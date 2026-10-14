@@ -65,6 +65,7 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/parties", roles: ["Owner", "Manager", "Sales", "Accountant"] },
   { prefix: "/masters", roles: ["Owner", "Manager"] },
   { prefix: "/purchases", roles: ["Owner", "Manager", "Storekeeper"] },
+  { prefix: "/find-items", roles: ["Owner", "Manager", "Storekeeper", "Sales", "Accountant"] },
   { prefix: "/items", roles: ["Owner", "Manager", "Storekeeper", "Sales", "Accountant"] },
   { prefix: "/stock-ledger", roles: ["Owner", "Manager", "Storekeeper", "Accountant"] },
   { prefix: "/alerts", roles: ["Owner", "Manager", "Storekeeper"] },

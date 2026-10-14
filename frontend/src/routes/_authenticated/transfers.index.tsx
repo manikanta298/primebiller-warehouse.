@@ -1,3 +1,4 @@
+import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -62,7 +63,7 @@ function Transfers() {
             <tbody>
               {pageRows.map((t) => (
                 <tr key={t.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => navigate({ to: "/transfers/$id", params: { id: t.id } })}>
-                  <td className="num whitespace-nowrap px-4 py-2.5 font-medium">{t.number}</td>
+                  <td className="num whitespace-nowrap px-4 py-2.5 font-medium"><SearchHighlight text={t.number ?? ""} query={search}/></td>
                   <td className="num whitespace-nowrap px-4 py-2.5">{formatDate(t.date)}</td>
                   <td className="px-4 py-2.5">{t.fromName} → {t.toName}</td>
                   <td className="num px-4 py-2.5">{t.lines.length}</td>

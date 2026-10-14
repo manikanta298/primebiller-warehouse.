@@ -9,7 +9,8 @@ export const NAV = [
     section: "Overview",
     items: [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/search", label: "Find a document", icon: Search },
+      { to: "/search", label: "Find Documents", icon: Search },
+      { to: "/find-items", label: "Find Items", icon: Package },
     ],
   },
   {
