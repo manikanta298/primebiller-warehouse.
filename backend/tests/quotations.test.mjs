@@ -18,6 +18,7 @@ test('quotation HTTP lifecycle: stock unchanged, accepted once, advances linked,
     if (sql.startsWith('SELECT id, name, active')) return [[{ id: 'u1', name: 'Tester', active: 1, token_version: 0 }], []];
     if (sql.startsWith('SELECT ur.role')) return [p[1] && p[1] !== 'org1' ? [] : [{ role, id: 'org1', state_code: '36', gstin: '' }], []];
     if (sql.startsWith('SELECT g.id FROM user_godowns')) return [assigned.map(id => ({ id })), []];
+    if (sql.startsWith('SELECT body FROM org_settings')) return [[{body:{quotationTerms:'Terms from settings',quotationNotes:'Notes from settings',bankAccount:'secret-bank'}}],[]];
     if (sql.startsWith('SELECT * FROM godowns')) return [[{ id: p[1], org_id: 'org1', name: 'Warehouse', code: 'G1', active: 1, state_code: '36' }], []];
     if (sql.startsWith('SELECT * FROM items')) return [[item], []];
     if (sql.startsWith('SELECT * FROM item_stock')) return [[stock], []];
@@ -61,8 +62,8 @@ test('quotation HTTP lifecycle: stock unchanged, accepted once, advances linked,
   const date = today(), validUntil = new Date(Date.now() + 7 * 86400000).toISOString().slice(0,10);
   const input = { date, validUntil, customerId: 'c1', godownId: 'g1', notes: '', terms: 'Valid prices', lines: [{ itemId: 'i1', itemName: 'Forged', hsn: '0000', uom: 'PCS', qty: 1, rate: 100, discountPct: 0, gstRate: 0 }] };
   try {
-    role = 'Driver'; assert.equal((await request('/quotations')).status, 403); assert.equal((await request('/quotations',input)).status, 403);
-    role = 'Sales'; assigned = []; assert.equal((await request('/quotations',input)).status, 403); assigned = ['g1'];
+    role = 'Driver'; assert.equal((await request('/quotation-defaults')).status,403); assert.equal((await request('/quotations')).status, 403); assert.equal((await request('/quotations',input)).status, 403);
+    role = 'Sales'; assert.deepEqual((await request('/quotation-defaults')).body,{terms:'Terms from settings',notes:'Notes from settings'}); assigned = []; assert.equal((await request('/quotations',input)).status, 403); assigned = ['g1'];
     const created = await request('/quotations', input); assert.equal(created.status, 200, JSON.stringify(created.body));
     const q = created.body, path = '/quotations/' + q.id;
     assert.equal(q.grandTotal,118); assert.equal(q.lines[0].itemName,'Item'); assert.equal(q.lines[0].gstRate,18);

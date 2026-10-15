@@ -12,3 +12,25 @@ export function invoiceAmountWords(amount: number): string {
   }
   return `Rupees ${words(Math.floor(paise / 100))}${paise % 100 ? ` and ${words(paise % 100)} Paise` : ""} Only`;
 }
+
+/** A4 height less 12mm margins on both sides and a 2mm pagination buffer. */
+export function singlePageInvoiceScale(height: number): number {
+  if (!Number.isFinite(height) || height <= 0) return 1;
+  return Math.min(1, Math.max(0.0001, Math.floor(((271 * 96 / 25.4) / height) * 10000) / 10000));
+}
+
+/** Zoom can alter table wrapping; measure again instead of assuming a linear height. */
+export function fitInvoiceSheet(sheet: { style: { zoom: string; width?: string; maxWidth?: string }; getBoundingClientRect: () => { height: number } }): void {
+  sheet.style.zoom = "1";
+  sheet.style.width = "186mm";
+  sheet.style.maxWidth = "none";
+  let scale = 1;
+  const available = 271 * 96 / 25.4;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const height = sheet.getBoundingClientRect().height;
+    if (!Number.isFinite(height) || height <= 0 || height <= available) break;
+    scale = Math.max(0.0001, Math.floor(scale * singlePageInvoiceScale(height) * 0.98 * 1e6) / 1e6);
+    sheet.style.zoom = String(scale);
+    sheet.style.width = `${186 / scale}mm`;
+  }
+}

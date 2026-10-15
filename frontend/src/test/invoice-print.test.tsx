@@ -1,13 +1,13 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { InvoiceSheet } from "@/components/app/InvoiceSheet";
 import { PrintDocument } from "@/components/app/PrintDocument";
-import { invoiceAmountWords } from "@/lib/invoice-print";
+import { invoiceAmountWords, singlePageInvoiceScale } from "@/lib/invoice-print";
 import { PRINT_DEFAULTS } from "@/lib/print-rules";
 import type { Invoice, OrgSettings } from "@/api/types";
 const invoice = { id: "i1", number: "INV/26-27/00001", date: "2026-10-13", dueDate: "2026-11-12", customerId: "p1", customerName: "Saved Customer", billingAddress: "Saved address, Hyderabad", customerPhone: "9999999999", gstin: "", placeOfSupplyCode: "36", placeOfSupplyName: "Telangana", supply: "intra", challans: [], lines: [{ soLineId: "sol1", itemId: "item1", itemName: "Sample item", hsn: "1234", qty: 2, rate: 100, discountPct: 10, gstRate: 18, uom: "PCS", allocations: [] }], taxable: 180, cgst: 16.2, sgst: 16.2, igst: 0, grandTotal: 212, roundOff: -0.4, byRate: [], advances: [], paid: 0, balance: 212, status: "awaiting_payment", createdBy: "Owner" } as Invoice;
 const settings = { legalName: "Test Business", tradeName: "", gstin: "NA", address: "Office address", phone: "", email: "", bankName: "Bank", bankAccount: "123456", ifsc: "BANK0000001", invoiceTerms: "Saved terms", jurisdiction: "Hyderabad" } as OrgSettings;
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe("invoice reference layout", () => {
   it("prints saved amounts, discounted lines, bank details and amount in words", () => {
     render(<InvoiceSheet invoice={invoice} settings={settings} profile={PRINT_DEFAULTS.B} />);
@@ -32,12 +32,28 @@ describe("invoice reference layout", () => {
     expect(screen.queryByText("Our Bank Details")).toBeNull();
     expect(screen.queryByText("HSN & GST Summary")).toBeNull();
   });
-  it("puts print copies directly on the body and cleans them up", () => {
+  it("prints only one original even when a legacy profile requests several copies", () => {
     const result = render(<PrintDocument kind="invoice" document={invoice} settings={settings} profile={{ ...PRINT_DEFAULTS.B, copies: 2 }} />);
     const layout = screen.getByLabelText("Invoice print layout");
     expect(layout.parentElement).toBe(document.body);
-    expect(layout.querySelectorAll(".invoice-sheet")).toHaveLength(2);
+    expect(layout.querySelectorAll(".invoice-sheet")).toHaveLength(1);
     result.unmount(); expect(screen.queryByLabelText("Invoice print layout")).toBeNull();
+  });
+  it("re-measures and fits its original sheet before printing", () => {
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 2000 } as DOMRect);
+    render(<PrintDocument kind="invoice" document={invoice} settings={settings} profile={{ ...PRINT_DEFAULTS.B, copies: 4 }} />);
+    const sheet = document.querySelector<HTMLElement>(".invoice-single-page .invoice-sheet")!;
+    expect(Number(sheet.style.zoom)).toBeGreaterThan(0);
+    expect(Number(sheet.style.zoom) * 2000).toBeLessThanOrEqual(271 * 96 / 25.4);
+    rect.mockReturnValue({ height: 500 } as DOMRect);
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(sheet.style.zoom).toBe("1");
+    expect(document.querySelectorAll(".invoice-single-page .invoice-sheet")).toHaveLength(1);
+  });
+  it("fits long invoices without enlarging short ones", () => {
+    expect(singlePageInvoiceScale(500)).toBe(1);
+    expect(singlePageInvoiceScale(2000) * 2000).toBeLessThanOrEqual(271 * 96 / 25.4);
+    expect(singlePageInvoiceScale(2000)).toBeGreaterThan(0);
   });
   it("supports Indian grouping, paise, zero and invalid amounts", () => {
     expect(invoiceAmountWords(38026)).toBe("Rupees Thirty Eight Thousand Twenty Six Only");

@@ -559,6 +559,7 @@ export interface NumberSeriesInput { docType: DocType; prefix: string; padding: 
 // ---------- Settings ----------
 export interface ReasonCode { id: string; type: "adjustment" | "return" | "override" | "cancellation"; code: string; label: string; active: boolean }
 export interface OrgSettings {
+  quotationTerms?: string; quotationNotes?: string;
   legalName: string; tradeName: string; gstin: string; pan: string; address: string; stateCode: string; phone: string; email: string;
   bankName: string; bankAccount: string; ifsc: string; invoiceTerms: string; jurisdiction: string;
   fyName: string; fyStart: string; fyEnd: string; fyStatus: "open" | "closed";

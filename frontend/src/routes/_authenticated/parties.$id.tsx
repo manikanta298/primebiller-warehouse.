@@ -126,13 +126,13 @@ function PartyPage() {
             </Field>
             <Field label="Name" error={issues.find((i) => i.startsWith("Party name"))}><Input autoFocus={isNew} value={d.name} maxLength={200} onChange={(e) => set("name", e.target.value)} /></Field>
             <Field label="Trade name"><Input value={d.tradeName ?? ""} maxLength={200} onChange={(e) => set("tradeName", e.target.value)} /></Field>
-            <Field label="PAN" error={issues.find((i) => i.startsWith("PAN"))}><Input value={d.pan ?? ""} maxLength={10} onChange={(e) => set("pan", e.target.value.toUpperCase())} className="num" /></Field>
-            <Field label="GSTIN" hint="Leave blank for unregistered" error={gstinErr} className="col-span-2">
+            <Field label="PAN (optional)" error={issues.find((i) => i.startsWith("PAN"))}><Input value={d.pan ?? ""} maxLength={10} onChange={(e) => set("pan", e.target.value.toUpperCase())} className="num" /></Field>
+            <Field label="GSTIN (optional)" hint="Leave blank for unregistered" error={gstinErr} className="col-span-2">
               <Input
                 value={gstin} maxLength={15} className="num"
                 onChange={(e) => {
                   const g = e.target.value.toUpperCase();
-                  setD((x) => ({ ...x, gstin: g, ...(g.length >= 12 ? { pan: g.slice(2, 12) } : {}), ...(g.length >= 2 && isValidGstin(g) ? { stateCode: stateFromGstin(g) } : {}) }));
+                  setD((x) => ({ ...x, gstin: g, ...(isValidGstin(g) ? { pan: g.slice(2, 12) } : !g && x.pan === x.gstin?.slice(2, 12) ? { pan: "" } : {}), ...(g.length >= 2 && isValidGstin(g) ? { stateCode: stateFromGstin(g) } : {}) }));
                   setServerError("");
                 }}
               />

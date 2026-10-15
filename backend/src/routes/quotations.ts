@@ -1,3 +1,4 @@
+import { one } from "../db.js";
 import { Router } from "express";
 import { z } from "zod";
 import { h, read, write } from "../http.js";
@@ -17,6 +18,11 @@ const inputSchema = z.object({
   notes: z.string().max(2000), terms: z.string().max(2000),
   lines: z.array(z.object({ itemId: z.string().min(1).max(40), itemName: z.string().max(200), hsn: z.string().max(8), uom: z.string().max(12), qty: z.number().finite(), rate: z.number().finite(), discountPct: z.number().finite(), gstRate: z.number().finite() }).strict()).min(1).max(200),
 }).strict();
+quotationRouter.get("/quotation-defaults", h(req => read(req, async u => {
+  const row = await one(u.conn, "SELECT body FROM org_settings WHERE org_id = ?", [u.ctx.orgId]);
+  const settings = row ? (typeof row["body"] === "string" ? JSON.parse(row["body"]) : row["body"]) : {};
+  return { terms: settings.quotationTerms ?? "", notes: settings.quotationNotes ?? "" };
+})));
 quotationRouter.get("/quotations", h(req => read(req, u => u.docs_("quotations"))));
 quotationRouter.get("/quotations/:id", h(req => read(req, async u => {
   const q = await u.doc("quotations", String(req.params["id"]));

@@ -47,7 +47,7 @@ const TOGGLES: [keyof PrintProfile, string][] = [
 
 function Profile({ p, orgId, settings }: { p: PrintProfile; orgId: string; settings: OrgSettings }) {
   const qc = useQueryClient();
-  const [f, setF] = useState(p);
+  const [f, setF] = useState(p.id === "B" ? { ...p, copies: 1 } : p);
   const problems = printProfileProblems(f, p.id);
   const dirty = JSON.stringify(normalisePrintProfile(f)) !== JSON.stringify(p);
   const m = useMutation({
@@ -74,17 +74,17 @@ function Profile({ p, orgId, settings }: { p: PrintProfile; orgId: string; setti
         {f.showQr && <p className="text-xs text-amber-700">QR printing is disabled until a verified UPI or e-invoice QR source is integrated; no placeholder QR is printed.</p>}
         {f.showLogo && <p className="text-xs text-muted-foreground">The organisation's initials are used as a brand mark; logo-image uploads are not supported yet.</p>}
         <div className="grid gap-3 sm:grid-cols-[120px_1fr]">
-          <Field label="Copies"><Input className="num" type="number" min={1} max={5} step={1} value={f.copies} onChange={(e) => setF({ ...f, copies: Number(e.target.value) })} /></Field>
+          <Field label="Copies"><Input disabled={p.id === "B"} className="num" type="number" min={1} max={5} step={1} value={p.id === "B" ? 1 : f.copies} onChange={(e) => setF({ ...f, copies: Number(e.target.value) })} /></Field>
           <Field label="Footer line"><Input maxLength={160} value={f.footer} onChange={(e) => setF({ ...f, footer: e.target.value })} /></Field>
         </div>
         {problems.map((message) => <p key={message} role="alert" className="text-xs text-destructive">{message}</p>)}
         <div className="flex gap-2">
           <Button disabled={m.isPending || !dirty || problems.length > 0} onClick={() => m.mutate()}>{m.isPending ? "Saving…" : `Save profile ${p.id}`}</Button>
-          <Button variant="outline" disabled={!dirty || m.isPending} onClick={() => setF(p)}>Discard</Button>
+          <Button variant="outline" disabled={!dirty || m.isPending} onClick={() => setF(p.id === "B" ? { ...p, copies: 1 } : p)}>Discard</Button>
         </div>
         {dirty && <p className="text-xs text-muted-foreground">Unsaved changes — printing an actual document will use the last saved profile.</p>}
       </div>
-      <Preview f={f} settings={settings} />
+      <Preview f={p.id === "B" ? { ...f, copies: 1 } : f} settings={settings} />
     </section>
   );
 }

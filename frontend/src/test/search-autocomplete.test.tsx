@@ -21,7 +21,7 @@ describe("two-letter autocomplete", () => {
   fireEvent.change(input,{target:{value:'bl'}});expect(screen.queryByRole('listbox')).toBeNull();fireEvent.keyDown(input,{key:'Enter'});expect(pick).toHaveBeenCalledTimes(1);
   fireEvent.change(input,{target:{value:'zz'}});expect(screen.getByRole('status')).toHaveTextContent('No matching');
   fireEvent.change(input,{target:{value:'ra'}});fireEvent.keyDown(input,{key:'Escape'});expect(screen.queryByRole('listbox')).toBeNull();
-  fireEvent.focus(input);const option=within(screen.getByRole('listbox')).getAllByRole('option')[0]!;fireEvent.pointerDown(option,{pointerType:'touch'});fireEvent.click(option);expect(pick).toHaveBeenCalledWith('1');
+  fireEvent.focus(input);fireEvent.change(input,{target:{value:'ra'}});const option=within(screen.getByRole('listbox')).getAllByRole('option')[0]!;fireEvent.pointerDown(option,{pointerType:'touch'});fireEvent.click(option);expect(pick).toHaveBeenCalledWith('1');
  });
  it("upgrades customer/item/supplier NativeSelect without changing its callback value",()=>{
   const change=vi.fn();render(<NativeSelect aria-label="Item 1" value="" onChange={change}><option value="">Choose item</option><option value="i1">Cement Bag</option></NativeSelect>);

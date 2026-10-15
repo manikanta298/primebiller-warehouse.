@@ -33,6 +33,21 @@ jobs:
         run: npm run test:ca
       - name: Password OTP recovery UI tests
         run: npm run test:password-otp
+      - name: Quotation, search and invoice print regression tests
+        run: npm run test:quotations
+      - name: Record deletion regression tests
+        run: npm run test:record-delete
+      - name: Install PDF inspection utilities
+        run: sudo apt-get update -qq && sudo apt-get install -y poppler-utils
+      - name: Verify single-page original invoice PDFs
+        run: node scripts/verify-invoice-pdf.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: invoice-pdf-verification
+          include-hidden-files: true
+          path: frontend/.invoice-pdf-check/*.pdf
+          if-no-files-found: ignore
       - name: Compile Vercel frontend
         run: npm run build:vercel
         env:
