@@ -40,7 +40,7 @@ export function receivables(invoices: Invoice[], today: string): ReceivableRow[]
   return [...map.values()].sort((a, b) => b.total - a.total);
 }
 
-export function itemSales(invoices: Invoice[], costOf: (itemId: string) => number): ItemSalesRow[] {
+export function itemSales(invoices: Invoice[], costOf: (itemId: string, soLineId: string) => number): ItemSalesRow[] {
   const map = new Map<string, ItemSalesRow>();
   for (const i of invoices) {
     if (i.status === "cancelled") continue;
@@ -48,7 +48,7 @@ export function itemSales(invoices: Invoice[], costOf: (itemId: string) => numbe
       const r = map.get(l.itemId) ?? { itemId: l.itemId, item: l.itemName, hsn: l.hsn, uom: l.uom, qty: 0, taxable: 0, cost: 0, margin: 0 };
       r.qty += l.qty;
       r.taxable = r2(r.taxable + lineTaxable(l));
-      r.cost = r2(r.cost + l.qty * costOf(l.itemId));
+      r.cost = r2(r.cost + l.qty * costOf(l.itemId, l.soLineId));
       r.margin = r2(r.taxable - r.cost);
       map.set(l.itemId, r);
     }

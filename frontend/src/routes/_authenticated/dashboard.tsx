@@ -53,12 +53,12 @@ function DashboardPage() {
       {data && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Kpi icon={Boxes} label="Stock value" value={formatCompactINR(data.stockValue)} hint={formatINR(data.stockValue, 0)} tone="primary" />
+            <Kpi icon={Boxes} label="Stock value" value={godownId === "all" ? "Select warehouse" : formatCompactINR(data.stockValue)} hint={godownId === "all" ? "Stock is tracked separately per warehouse" : formatINR(data.stockValue, 0)} tone="primary" />
             <Kpi icon={Activity} label="Movements today" value={String(data.movementsToday)} ledgerDate={canViewLedger ? data.asOfDate : undefined} />
-            <Kpi icon={Clock} label="Near expiry" value={String(data.nearExpiry)} tone="warn" tab={canViewAlerts ? "near_expiry" : undefined} />
-            <Kpi icon={TrendingDown} label="Over-aged" value={String(data.overAged)} tone="warn" tab={canViewAlerts ? "over_aged" : undefined} />
-            <Kpi icon={AlertTriangle} label="Low stock" value={String(data.lowStock)} tone="ember" tab={canViewAlerts ? "below_reorder" : undefined} />
-            <Kpi icon={PackageX} label="Out of stock" value={String(data.outOfStock)} tone="danger" tab={canViewAlerts ? "out_of_stock" : undefined} />
+            <Kpi icon={Clock} label="Near expiry" value={godownId === "all" ? "—" : String(data.nearExpiry)} tone="warn" tab={canViewAlerts ? "near_expiry" : undefined} />
+            <Kpi icon={TrendingDown} label="Over-aged" value={godownId === "all" ? "—" : String(data.overAged)} tone="warn" tab={canViewAlerts ? "over_aged" : undefined} />
+            <Kpi icon={AlertTriangle} label="Low stock" value={godownId === "all" ? "—" : String(data.lowStock)} tone="ember" tab={canViewAlerts ? "below_reorder" : undefined} />
+            <Kpi icon={PackageX} label="Out of stock" value={godownId === "all" ? "—" : String(data.outOfStock)} tone="danger" tab={canViewAlerts ? "out_of_stock" : undefined} />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">

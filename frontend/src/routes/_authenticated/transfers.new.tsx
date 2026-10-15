@@ -1,3 +1,4 @@
+import { warehouseUnitCost } from "@/lib/warehouse-stock";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -63,7 +64,7 @@ function NewTransfer() {
         free: free(r.itemId), active: !!it?.active, trackBatches: it?.trackBatches ?? false,
         batchNo: r.batchNo || undefined, batchQty: b?.qty };
     }));
-  const value = active.reduce((a, r) => a + (Number(r.qty) || 0) * (item(r.itemId)?.costPrice ?? 0), 0);
+  const value = active.reduce((a, r) => a + (Number(r.qty) || 0) * (item(r.itemId) ? warehouseUnitCost(item(r.itemId)!, fromId) : 0), 0);
 
   const go = useMutation({
     mutationFn: () => api.dispatchTransfer({ date, fromId, toId, vehicleNo: vehicle, reason, lines: active.map((r) => ({ itemId: r.itemId, batchNo: r.batchNo || undefined, qty: Number(r.qty) })) }),

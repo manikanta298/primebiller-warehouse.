@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS item_stock (
   held DECIMAL(15,3) NOT NULL DEFAULT 0,
   reorder_level DECIMAL(15,3) NOT NULL DEFAULT 0,
   max_level DECIMAL(15,3) NOT NULL DEFAULT 0,
+  unit_cost DECIMAL(18,2) NULL,
   PRIMARY KEY (item_id, godown_id),
   CONSTRAINT fk_is_item FOREIGN KEY (item_id) REFERENCES items(id),
   CONSTRAINT fk_is_godown FOREIGN KEY (godown_id) REFERENCES godowns(id)
@@ -397,3 +398,14 @@ CREATE TABLE IF NOT EXISTS quotation_drafts (
   updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (org_id, user_id, draft_key)
 ) ENGINE=InnoDB;
+
+-- Additive warehouse moving-average valuation. Existing quantities and history are untouched.
+-- NULL retains the existing item default cost until this warehouse next receives stock.
+SET @warehouse_cost_ddl = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'item_stock' AND COLUMN_NAME = 'unit_cost') = 0,
+  'ALTER TABLE item_stock ADD COLUMN unit_cost DECIMAL(18,2) NULL',
+  'SELECT 1'
+);
+PREPARE warehouse_cost_statement FROM @warehouse_cost_ddl;
+EXECUTE warehouse_cost_statement;
+DEALLOCATE PREPARE warehouse_cost_statement;

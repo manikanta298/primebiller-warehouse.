@@ -1,3 +1,4 @@
+import { warehouseStockValue, warehouseUnitCost } from "./warehouse-stock.ts";
 /**
  * Shared, deterministic Items List presentation rules. The server remains the
  * source of truth for organisation ownership, stock quantities, and permissions.
@@ -39,7 +40,7 @@ export function itemListSummary(items: Item[], godownId: string) {
     if (!item.active) return totals;
     const s = itemStock(item, godownId);
     totals.active++;
-    totals.value += s.onHand * item.costPrice;
+    totals.value += warehouseStockValue(item, godownId);
     const status = itemStockStatus(item, godownId);
     if (status === "out") totals.out++;
     if (status === "low") totals.low++;
@@ -64,7 +65,7 @@ export function filterItemList(items: Item[], options: ItemListOptions): Item[] 
       case "name_desc": return -nameOrder(a, b);
       case "stock_desc": return descending(a, b, (i) => itemStock(i, options.godownId).onHand);
       case "free_asc": return itemStock(a, options.godownId).free - itemStock(b, options.godownId).free || nameOrder(a, b);
-      case "value_desc": return descending(a, b, (i) => itemStock(i, options.godownId).onHand * i.costPrice);
+      case "value_desc": return descending(a, b, (i) => warehouseStockValue(i, options.godownId));
       case "price_desc": return descending(a, b, (i) => i.salePrice);
       default: return nameOrder(a, b);
     }
@@ -91,7 +92,7 @@ export function itemListCsv(items: Item[], godownId: string): string {
   const fields = ["Item", "SKU", "Category", "Brand", "HSN", "GST %", "On hand", "Held", "Free", "Unit", "Sale price", "Cost price", "Active"];
   const records = items.map((item) => {
     const s = itemStock(item, godownId);
-    return [item.name, item.sku, item.category, item.brand, item.hsn, item.gstRate, s.onHand, s.held, s.free, item.baseUom, item.salePrice, item.costPrice, item.active ? "Yes" : "No"];
+    return [item.name, item.sku, item.category, item.brand, item.hsn, item.gstRate, s.onHand, s.held, s.free, item.baseUom, item.salePrice, warehouseUnitCost(item, godownId), item.active ? "Yes" : "No"];
   });
   return `\uFEFF${[fields, ...records].map((values) => values.map(csvField).join(",")).join("\r\n")}\r\n`;
 }

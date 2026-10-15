@@ -20,7 +20,7 @@ export function dashboardInventory(
   for (const item of items) {
     for (const stock of item.stock) {
       if (!ids.has(stock.godownId)) continue;
-      totals.set(stock.godownId, (totals.get(stock.godownId) ?? 0) + stock.onHand * item.costPrice);
+      totals.set(stock.godownId, (totals.get(stock.godownId) ?? 0) + stock.onHand * (stock.unitCost ?? item.costPrice));
     }
   }
 

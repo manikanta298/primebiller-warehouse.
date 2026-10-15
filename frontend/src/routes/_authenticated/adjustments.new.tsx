@@ -1,3 +1,4 @@
+import { warehouseUnitCost } from "@/lib/warehouse-stock";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -64,7 +65,7 @@ function NewAdjustment() {
   const active = rows.filter((r) => r.itemId);
   const lines = active.map((r) => {
     const it = item(r.itemId)!;
-    return { ...r, qtyN: Number(r.qty), cost: r.direction === "down" ? it.costPrice : Number(r.unitCost) };
+    return { ...r, qtyN: Number(r.qty), cost: r.direction === "down" ? warehouseUnitCost(it, godownId) : Number(r.unitCost) };
   });
   const problems = adjustmentDraftProblems({ date, godownId, reason, notes }, godowns.find((g) => g.id === godownId), businessToday(), lines.map((l) => {
     const it = item(l.itemId)!;
@@ -152,7 +153,7 @@ function NewAdjustment() {
                   <td className="px-2 py-2">
                     {r.direction === "up"
                       ? <Input aria-label={`Unit cost ${i + 1}`} className="num" value={r.unitCost} onChange={(e) => set(i, { unitCost: e.target.value.replace(/[^\d.]/g, "") })} />
-                      : <span className="num text-muted-foreground" title="Reductions are valued at current average cost">{it ? formatINR(it.costPrice) : "—"}</span>}
+                      : <span className="num text-muted-foreground" title="Reductions are valued at current average cost">{it ? formatINR(warehouseUnitCost(it, godownId)) : "—"}</span>}
                   </td>
                   <td><Button size="icon" variant="ghost" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((_, n) => n !== i))}><Trash2 /></Button></td>
                 </tr>

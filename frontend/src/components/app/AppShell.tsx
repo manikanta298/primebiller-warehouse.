@@ -129,7 +129,7 @@ function TopBar({ session, onHelp }: { session: Session; onHelp: () => void }) {
     enabled: !!session.orgId && !ca,
   });
   const { data: notes = [] } = useQuery({ queryKey: ["notifications"], queryFn: api.listNotifications, enabled: !ca });
-  const { data: alerts = [] } = useQuery({ queryKey: ["alerts", session.godownId ?? "all"], queryFn: () => api.getAlerts(session.godownId ?? "all"), enabled: !ca });
+  const { data: alerts = [] } = useQuery({ queryKey: ["alerts", session.orgId, session.godownId ?? "all"], queryFn: () => api.getAlerts(session.godownId ?? "all"), enabled: !ca });
   const openAlerts = alerts.filter((a) => !a.acknowledged).length;
   const unread = notes.filter((n) => !n.read).length + openAlerts;
   const godownName = session.godownId === "all" ? "All godowns" : godowns.find((g) => g.id === session.godownId)?.name ?? "…";

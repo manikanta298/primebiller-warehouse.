@@ -1,3 +1,4 @@
+import { warehouseUnitCost } from "@/lib/warehouse-stock";
 import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
@@ -198,14 +199,14 @@ function QuickStockAdjustment({ orgId, warehouse, item, direction, onClose }: { 
   const qc = useQueryClient();
   const [qty, setQty] = useState("");
   const [batchNo, setBatchNo] = useState("");
-  const [unitCost, setUnitCost] = useState(String(item.costPrice || ""));
+  const [unitCost, setUnitCost] = useState(String(warehouseUnitCost(item, warehouse.id) || ""));
   const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState("");
   const date = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
   const s = item.stock.find((row) => row.godownId === warehouse.id);
   const availableBatches = item.batches.filter((b) => b.godownId === warehouse.id && b.qty > 0);
   const batch = availableBatches.find((b) => b.batchNo === batchNo);
-  const cost = direction === "down" ? item.costPrice : Number(unitCost);
+  const cost = direction === "down" ? warehouseUnitCost(item, warehouse.id) : Number(unitCost);
   const reason = direction === "up" ? "found" : "correction";
   const problems = adjustmentDraftProblems({ date, godownId: warehouse.id, reason, notes }, warehouse, date, [{
     itemId: item.id, itemName: item.name, active: item.active, direction, qty: Number(qty), onHand: s?.onHand ?? 0,

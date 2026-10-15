@@ -19,7 +19,7 @@ export function warehouseCatalogue(items: Item[], warehouseId: string, query = "
     if (filter === "available" && free <= 0) return [];
     if (filter === "zero" && free > 0) return [];
     if (filter === "reserved" && held <= 0) return [];
-    return [{ item, onHand, held, free, value: onHand * item.costPrice }];
+    return [{ item, onHand, held, free, value: onHand * (s?.unitCost ?? item.costPrice) }];
   }).sort((a, b) => a.item.name.localeCompare(b.item.name) || a.item.sku.localeCompare(b.item.sku));
 }
 

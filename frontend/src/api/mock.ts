@@ -1,3 +1,4 @@
+import { warehouseUnitCost, warehouseStockRow, receiveWarehouseCost } from "@/lib/warehouse-stock";
 /**
  * In-memory mock backend. Mirrors the REST API signatures in client.ts so the
  * UI can be built before the Express + MySQL service exists.
@@ -43,7 +44,7 @@ import { filterDocs } from "@/lib/search-rules";
 import { PRINT_DEFAULTS, printProfileProblems, normalisePrintProfile } from "@/lib/print-rules";
 import { applyAdvancesOldestFirst, dueDateFor, invoiceStatus, invoiceNumber, invoiceIssueProblems, invoiceCancelProblems, invoicesForOrg } from "@/lib/invoice-rules";
 import { receiptAllocation, receiptProblems, receiptPaise, receiptsForOrg } from "@/lib/receipt-rules";
-import { apportionFreight, weightedAverageCost, poStatus, poDraftProblems, poWorkflowProblems, purchaseOrdersForOrg } from "@/lib/purchase-rules";
+import { apportionFreight, poStatus, poDraftProblems, poWorkflowProblems, purchaseOrdersForOrg } from "@/lib/purchase-rules";
 import { grnDraftProblems, grnsForOrg } from "@/lib/grn-rules";
 import { adjustmentDraftProblems, adjustmentValue, needsApproval, canApproveAdjustment, reasonLabel, adjustmentsForOrg } from "@/lib/adjustment-rules";
 import { transferDraftProblems, receiveProblems, receivedStatus, transfersForOrg } from "@/lib/transfer-rules";
@@ -1033,7 +1034,7 @@ function post(s: Store, c: Challan, sign: 1 | -1) {
       s.posted.push({
         id: `p${s.posted.length + 1}`, at: nowIso().slice(0, 16), docNo: c.number, docType: "challan", soId: c.soId,
         type: sign === 1 ? "DC_ISSUE" : "DC_REVERSE", itemId: it.id, itemName: it.name, godownId: c.godownId, godownName: c.godownName,
-        ...(a.batchNo ? { batchNo: a.batchNo } : {}), qty: -sign * a.qty, unitCost: it.costPrice, user: userName(),
+        ...(a.batchNo ? { batchNo: a.batchNo } : {}), qty: -sign * a.qty, unitCost: warehouseUnitCost(it, c.godownId), user: userName(),
       });
     }
     const sl = o.lines.find((x) => x.id === l.soLineId);
@@ -1505,8 +1506,7 @@ export async function postGrn(input: GrnInput): Promise<Grn> {
     const accepted = l.received - l.rejected;
     const landed = accepted > 0 ? Math.round((l.rate + shares[n]! / accepted) * 100) / 100 : l.rate;
     if (accepted > 0) {
-      const totalQty = it.stock.reduce((a, x) => a + x.onHand, 0);
-      it.costPrice = weightedAverageCost(totalQty, it.costPrice, accepted, landed);
+      receiveWarehouseCost(it, g!.id, accepted, landed);
       let st = it.stock.find((x) => x.godownId === g.id);
       if (!st) { st = { godownId: g.id, onHand: 0, held: 0, reorderLevel: 0, maxLevel: 0 }; it.stock.push(st); }
       st.onHand += accepted;
@@ -1543,18 +1543,16 @@ export async function postGrn(input: GrnInput): Promise<Grn> {
 const gname = (s: Store, id: string) => s.godowns.find((g) => g.id === id)?.name ?? id;
 function trfLedger(s: Store, t: Transfer, it: Item, godownId: string, type: LedgerEntry["type"], qty: number, batchNo?: string, reason?: string) {
   s.posted.push({ id: `p${s.posted.length + 1}`, at: nowIso().slice(0, 16), docNo: t.number, docType: type.startsWith("ADJ") ? "adjustment" : "transfer", type,
-    itemId: it.id, itemName: it.name, godownId, godownName: gname(s, godownId), ...(batchNo ? { batchNo } : {}), qty, unitCost: it.costPrice, user: userName(), ...(reason ? { reason } : {}) });
+    itemId: it.id, itemName: it.name, godownId, godownName: gname(s, godownId), ...(batchNo ? { batchNo } : {}), qty, unitCost: t.lines.find(l => l.itemId === it.id && l.batchNo === batchNo)?.unitCost ?? warehouseUnitCost(it, godownId), user: userName(), ...(reason ? { reason } : {}) });
 }
-function moveStock(it: Item, godownId: string, qty: number, batchNo?: string, receivedDate?: string) {
-  let st = it.stock.find((x) => x.godownId === godownId);
-  if (!st) { st = { godownId, onHand: 0, held: 0, reorderLevel: 0, maxLevel: 0 }; it.stock.push(st); }
+function moveStock(it: Item, godownId: string, qty: number, batchNo?: string, receivedDate?: string, dates?: {mfgDate?: string | undefined; expiryDate?: string | undefined}) {
+  const st = warehouseStockRow(it, godownId);
   st.onHand += qty;
   if (!batchNo) return;
   const b = it.batches.find((x) => x.batchNo === batchNo && x.godownId === godownId);
   if (b) b.qty += qty;
   else if (qty > 0) {
-    const src = it.batches.find((x) => x.batchNo === batchNo);
-    it.batches.push({ id: `b${Date.now()}`, batchNo, godownId, qty, mfgDate: src?.mfgDate ?? receivedDate ?? MOCK_TODAY, receivedDate: src?.receivedDate ?? receivedDate ?? MOCK_TODAY, ...(src?.expiryDate ? { expiryDate: src.expiryDate } : {}) });
+    it.batches.push({ id: crypto.randomUUID(), batchNo, godownId, qty, mfgDate: dates?.mfgDate ?? receivedDate ?? MOCK_TODAY, receivedDate: receivedDate ?? MOCK_TODAY, ...(dates?.expiryDate ? { expiryDate: dates.expiryDate } : {}) });
   }
 }
 export async function listTransfers(status?: string): Promise<Transfer[]> {
@@ -1595,7 +1593,8 @@ export async function dispatchTransfer(input: TransferInput): Promise<Transfer> 
   const seq = ++s.trfSeq;
   const lines = input.lines.map((l, n) => {
     const it = catalog[n]!;
-    return { itemId: it.id, itemName: it.name, uom: it.baseUom, batchNo: l.batchNo?.trim() || undefined, qty: l.qty, unitCost: it.costPrice };
+    const sourceBatch = it.batches.find(b => b.godownId === input.fromId && b.batchNo === l.batchNo?.trim());
+    return { itemId: it.id, itemName: it.name, uom: it.baseUom, batchNo: l.batchNo?.trim() || undefined, qty: l.qty, unitCost: warehouseUnitCost(it, input.fromId), ...(sourceBatch ? { mfgDate: sourceBatch.mfgDate, expiryDate: sourceBatch.expiryDate, receivedDate: sourceBatch.receivedDate } : {}) };
   });
   const t: Transfer = {
     id: `trf${seq}`, number: fmtNo("TRF", seq), date: input.date, fromId: from!.id, fromName: from!.name,
@@ -1625,7 +1624,8 @@ export async function receiveTransfer(id: string, input: ReceiveTransferInput): 
     const r = rows[n]!;
     const it = s.items.find((i) => i.id === l.itemId)!;
     l.receivedQty = r.received;
-    moveStock(it, t.toId, l.qty, l.batchNo, t.date);
+    receiveWarehouseCost(it, t.toId, r.received, l.unitCost);
+    moveStock(it, t.toId, l.qty, l.batchNo, l.receivedDate ?? t.date, { mfgDate: l.mfgDate, expiryDate: l.expiryDate });
     trfLedger(s, t, it, t.toId, "TRANSFER_IN", l.qty, l.batchNo);
     if (r.received < l.qty) {
       l.shortReason = r.reason?.trim();
@@ -1648,6 +1648,7 @@ export async function cancelTransfer(id: string, reason: string): Promise<Transf
   if (!reason.trim() || reason.length > 500) throw new ApiError(422, "invalid_reason", "Enter a cancellation reason (max 500 characters)");
   for (const l of t.lines) {
     const it = s.items.find((i) => i.id === l.itemId)!;
+    receiveWarehouseCost(it, t.fromId, l.qty, l.unitCost);
     moveStock(it, t.fromId, l.qty, l.batchNo);
     trfLedger(s, t, it, t.fromId, "TRANSFER_IN", l.qty, l.batchNo, "Transfer cancelled");
   }
@@ -1660,11 +1661,8 @@ export async function cancelTransfer(id: string, reason: string): Promise<Transf
 function postAdjustment(s: Store, a: Adjustment) {
   for (const l of a.lines) {
     const it = s.items.find((i) => i.id === l.itemId)!;
-    if (l.direction === "down") l.unitCost = it.costPrice;
-    if (l.direction === "up") {
-      const total = it.stock.reduce((x, y) => x + y.onHand, 0);
-      it.costPrice = weightedAverageCost(total, it.costPrice, l.qty, l.unitCost);
-    }
+    if (l.direction === "down") l.unitCost = warehouseUnitCost(it, a.godownId);
+    if (l.direction === "up") receiveWarehouseCost(it, a.godownId, l.qty, l.unitCost);
     const q = l.direction === "up" ? l.qty : -l.qty;
     moveStock(it, a.godownId, q, l.batchNo, a.date);
     s.posted.push({ id: `p${s.posted.length + 1}`, at: nowIso().slice(0, 16), docNo: a.number, docType: "adjustment", type: l.direction === "up" ? "ADJ_IN" : "ADJ_OUT",
@@ -1683,7 +1681,7 @@ function adjChecks(s: Store, godownId: string, lines: AdjustmentInput["lines"]) 
     const b = l.batchNo ? it.batches.find((x) => x.batchNo === l.batchNo.trim() && x.godownId === godownId) : undefined;
     const stock = it.stock.find((x) => x.godownId === godownId);
     return { itemId: it.id, itemName: it.name, active: it.active, direction: l.direction, qty: l.qty, onHand: stock?.onHand ?? 0, held: stock?.held ?? 0,
-      unitCost: l.direction === "up" ? l.unitCost : it.costPrice, trackBatches: it.trackBatches, batchNo: l.batchNo, batchQty: b?.qty };
+      unitCost: l.direction === "up" ? l.unitCost : warehouseUnitCost(it, godownId), trackBatches: it.trackBatches, batchNo: l.batchNo, batchQty: b?.qty };
   });
 }
 export async function listAdjustments(status?: string): Promise<Adjustment[]> {
@@ -1713,7 +1711,7 @@ export async function createAdjustment(input: AdjustmentInput): Promise<Adjustme
   const seq = ++s.adjSeq;
   const lines = input.lines.map((l) => {
     const it = s.items.find((i) => i.id === l.itemId)!;
-    const unitCost = l.direction === "down" ? it.costPrice : l.unitCost;
+    const unitCost = l.direction === "down" ? warehouseUnitCost(it, input.godownId) : l.unitCost;
     return { itemId: it.id, itemName: it.name, uom: it.baseUom, batchNo: l.batchNo?.trim() || undefined, direction: l.direction, qty: l.qty, unitCost };
   });
   const v = adjustmentValue(lines);
@@ -1907,7 +1905,7 @@ export async function getItemSales(from: string, to: string): Promise<ItemSalesR
   await delay(200);
   const s = db();
   const orgId = getSession()?.orgId ?? "";
-  return buildItemSales(clone(reportInvoices(from, to)), (id) => s.itemOrgIds[id] === orgId ? (s.items.find((i) => i.id === id)?.costPrice ?? 0) : 0);
+  return buildItemSales(clone(reportInvoices(from, to)), (id, soLineId) => { const item = s.itemOrgIds[id] === orgId ? s.items.find(i => i.id === id) : undefined; const dispatch = s.challans.find(c => s.challanOrgIds[c.id] === orgId && c.lines.some(l => l.soLineId === soLineId)); return item ? warehouseUnitCost(item, dispatch?.godownId ?? "") : 0; });
 }
 export async function getGstr1(period: string): Promise<Gstr1> {
   if (!validReportMonth(period)) throw new ApiError(422, "bad_report_month", "Select a valid reporting month");

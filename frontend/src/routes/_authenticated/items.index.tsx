@@ -1,3 +1,4 @@
+import { InventoryWarehousePicker } from "@/components/app/InventoryWarehousePicker";
 import { SearchHighlight } from "@/components/app/SearchHighlight";
 import { DeleteRecordButton } from "@/components/app/DeleteRecordButton";
 import { useEffect, useMemo, useState } from "react";
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/_authenticated/items/")({
 
 const PAGE_SIZE = 25;
 
-function ItemsPage() {
+export function ItemsPage() {
   const session = useSession();
   const orgId = session?.orgId;
   const gid = session?.godownId ?? "all";
@@ -54,16 +55,16 @@ function ItemsPage() {
     refetchOnWindowFocus: true,
   });
   const items = useMemo(() => data ?? [], [data]);
-  const totals = useMemo(() => itemListSummary(items, gid), [items, gid]);
+  const totals = useMemo(() => itemListSummary(items, gid === "all" ? "__none__" : gid), [items, gid]);
   const categories = useMemo(() => [...new Set(items.map((i) => i.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [items]);
-  const filtered = useMemo(() => filterItemList(items, { query: q, category, stock, activity, sort, godownId: gid }), [items, q, category, stock, activity, sort, gid]);
+  const filtered = useMemo(() => filterItemList(items, { query: q, category, stock: gid === "all" ? "all" : stock, activity, sort: gid === "all" && ["stock_desc", "free_asc", "value_desc"].includes(sort) ? "name_asc" : sort, godownId: gid }), [items, q, category, stock, activity, sort, gid]);
   const { page: actualPage, totalPages: pages, start, rows: shown } = paginateItemList(filtered, page, PAGE_SIZE);
   const isFiltered = q.trim() !== "" || category !== "all" || stock !== "all" || activity !== "active";
   const reset = () => { setQ(""); setCategory("all"); setStock("all"); setActivity("active"); setSort("name_asc"); setPage(1); };
   // Never carry a previous organisation's catalogue filters or page into another one.
   useEffect(() => {
     setQ(""); setCategory("all"); setStock("all"); setActivity("active"); setSort("name_asc"); setPage(1);
-  }, [orgId]);
+  }, [orgId, gid]);
 
   const exportCsv = () => {
     if (!orgId || filtered.length === 0) return;
@@ -82,12 +83,13 @@ function ItemsPage() {
           </Button>
         ) : undefined}
       />
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Inventory summary">
+      <InventoryWarehousePicker />
+      {gid !== "all" && <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Inventory summary">
         <Strip label="Active items" value={data ? String(totals.active) : "–"} />
         <Strip label="Stock value" value={data ? formatCompactINR(totals.value) : "–"} />
         <Strip label="Below reorder" value={data ? String(totals.low) : "–"} tone="ember" />
         <Strip label="Out of stock" value={data ? String(totals.out) : "–"} tone="danger" />
-      </div>
+      </div>}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative w-full max-w-sm flex-1 basis-60">
@@ -98,7 +100,7 @@ function ItemsPage() {
           <option value="all">All categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </NativeSelect>
-        <NativeSelect aria-label="Filter stock status" className="w-full sm:w-40" value={stock} onChange={(e) => { setStock(e.target.value as ItemStockFilter); setPage(1); }}>
+        <NativeSelect aria-label="Filter stock status" className="w-full sm:w-40" value={stock} disabled={gid === "all"} onChange={(e) => { setStock(e.target.value as ItemStockFilter); setPage(1); }}>
           <option value="all">All stock</option>
           <option value="available">Stock healthy</option>
           <option value="low">Below reorder</option>
@@ -117,7 +119,7 @@ function ItemsPage() {
           <option value="value_desc">Highest stock value</option>
           <option value="price_desc">Highest sale price</option>
         </NativeSelect>
-        <Button variant="outline" size="sm" onClick={exportCsv} disabled={!data || filtered.length === 0} title="Export filtered items as CSV">
+        <Button variant="outline" size="sm" onClick={exportCsv} disabled={!data || filtered.length === 0 || gid === "all"} title="Export filtered items as CSV">
           <Download className="size-4" /> Export CSV
         </Button>
         {isFiltered && <Button variant="ghost" size="sm" onClick={reset}>Clear filters</Button>}
@@ -150,8 +152,8 @@ function ItemsPage() {
               </thead>
               <tbody>
                 {shown.map((i) => {
-                  const s = itemStock(i, gid);
-                  const status = itemStockStatus(i, gid);
+                  const s = itemStock(i, gid === "all" ? "__none__" : gid);
+                  const status = gid === "all" ? "available" : itemStockStatus(i, gid);
                   return (
                     <tr key={i.id} className="border-t hover:bg-muted/40">
                       <td className="px-4 py-2.5">
@@ -164,10 +166,10 @@ function ItemsPage() {
                       <td className="num">{i.hsn}</td>
                       <td className="num">{i.gstRate}%</td>
                       <td className={cn("num text-right", status === "out" ? "text-destructive" : status === "low" && "text-ember")}>
-                        {formatQty(s.onHand)} <span className="text-xs text-muted-foreground">{i.baseUom}</span>
+                        {gid === "all" ? "—" : formatQty(s.onHand)} <span className="text-xs text-muted-foreground">{i.baseUom}</span>
                       </td>
-                      <td className="num text-right text-muted-foreground">{formatQty(s.held)}</td>
-                      <td className={cn("num text-right font-medium", s.free <= 0 && "text-destructive")}>{formatQty(s.free)}</td>
+                      <td className="num text-right text-muted-foreground">{gid === "all" ? "—" : formatQty(s.held)}</td>
+                      <td className={cn("num text-right font-medium", gid !== "all" && s.free <= 0 && "text-destructive")}>{gid === "all" ? "—" : formatQty(s.free)}</td>
                       <td className="num px-4 text-right">{formatINR(i.salePrice)}</td>
                       {canImport && <td className="p-2"><div className="flex gap-2"><Button variant="outline" size="sm" className="min-h-11" asChild><Link to="/items/$id" params={{id:i.id}}>Edit</Link></Button><DeleteRecordButton kind="items" id={i.id} name={i.name} orgId={orgId!} /></div></td>}
                     </tr>

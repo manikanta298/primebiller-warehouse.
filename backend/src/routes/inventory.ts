@@ -1,3 +1,4 @@
+import { warehouseUnitCost, warehouseStockRow, receiveWarehouseCost } from "../shared/warehouse-stock.js";
 /** Purchase orders, goods receipts, transfers, adjustments, stock ledger and alerts. */
 import { Router } from "express";
 import { z } from "zod";
@@ -10,7 +11,7 @@ import { nowIso, today } from "../config.js";
 import { newId, rowToGodown, type Uow } from "../uow.js";
 import { loadItems } from "./core.js";
 import { computeTotals, supplyType } from "../shared/gst.js";
-import { apportionFreight, poStatus, weightedAverageCost, poDraftProblems, poWorkflowProblems } from "../shared/purchase-rules.js";
+import { apportionFreight, poStatus, poDraftProblems, poWorkflowProblems } from "../shared/purchase-rules.js";
 import { grnDraftProblems, invoiceKey } from "../shared/grn-rules.js";
 import { receivedStatus, receiveProblems, transferDraftProblems } from "../shared/transfer-rules.js";
 import { adjustmentDraftProblems, adjustmentValue, needsApproval, reasonLabel } from "../shared/adjustment-rules.js";
@@ -138,8 +139,7 @@ inventoryRouter.post("/grns", h((req) => write(req, async (u) => {
     const landed = accepted > 0 ? Math.round((l.rate + shares[n]! / accepted) * 100) / 100 : l.rate;
     const bn = l.batchNo?.trim();
     if (accepted > 0) {
-      const totalQty = it.stock.reduce((a, x) => a + x.onHand, 0);
-      it.costPrice = weightedAverageCost(totalQty, it.costPrice, accepted, landed);
+      receiveWarehouseCost(it, g.id, accepted, landed);
       moveStock(it, g.id, accepted, bn, input.date, { mfgDate: l.mfgDate || input.date, expiryDate: l.expiryDate });
       u.ledger({ at, docNo: number, docType: "grn", type: "PURCHASE_IN", itemId: it.id, itemName: it.name, godownId: g.id, godownName: g.name, ...(bn ? { batchNo: bn } : {}), qty: accepted, unitCost: landed, user: u.ctx.userName });
     }
@@ -165,17 +165,15 @@ inventoryRouter.post("/grns", h((req) => write(req, async (u) => {
 
 // ---------- Stock movement helpers ----------
 function moveStock(it: Item, godownId: string, qty: number, batchNo?: string, receivedDate?: string, dates?: { mfgDate?: string | undefined; expiryDate?: string | undefined }) {
-  let st = it.stock.find((x) => x.godownId === godownId);
-  if (!st) { st = { godownId, onHand: 0, held: 0, reorderLevel: 0, maxLevel: 0 }; it.stock.push(st); }
+  const st = warehouseStockRow(it, godownId);
   st.onHand += qty;
   if (!batchNo) return;
   const b = it.batches.find((x) => x.batchNo === batchNo && x.godownId === godownId);
   if (b) b.qty += qty;
   else if (qty > 0) {
-    const src = it.batches.find((x) => x.batchNo === batchNo);
     const d = receivedDate ?? today();
-    const expiry = dates?.expiryDate ?? src?.expiryDate;
-    it.batches.push({ id: newId("b"), batchNo, godownId, qty, mfgDate: dates?.mfgDate ?? src?.mfgDate ?? d, receivedDate: src?.receivedDate ?? d, ...(expiry ? { expiryDate: expiry } : {}) });
+    const expiry = dates?.expiryDate;
+    it.batches.push({ id: newId("b"), batchNo, godownId, qty, mfgDate: dates?.mfgDate ?? d, receivedDate: d, ...(expiry ? { expiryDate: expiry } : {}) });
   }
 }
 
@@ -217,7 +215,8 @@ inventoryRouter.post("/transfers", h((req) => write(req, async (u) => {
   const { number } = await u.next("TRF", input.date);
   const lines = input.lines.map((l) => {
     const it = items.get(l.itemId)!;
-    return { itemId: it.id, itemName: it.name, uom: it.baseUom, batchNo: l.batchNo?.trim() || undefined, qty: l.qty, unitCost: it.costPrice };
+    const sourceBatch = it.batches.find(b => b.godownId === input.fromId && b.batchNo === l.batchNo?.trim());
+    return { itemId: it.id, itemName: it.name, uom: it.baseUom, batchNo: l.batchNo?.trim() || undefined, qty: l.qty, unitCost: warehouseUnitCost(it, input.fromId), ...(sourceBatch ? { mfgDate: sourceBatch.mfgDate, expiryDate: sourceBatch.expiryDate, receivedDate: sourceBatch.receivedDate } : {}) };
   });
   const t: Transfer = {
     id: newId("trf"), number, date: input.date, fromId: from!.id, fromName: from!.name, toId: to!.id, toName: to!.name,
@@ -249,7 +248,8 @@ inventoryRouter.post("/transfers/:id/receive", h((req) => write(req, async (u) =
     const r = rowsIn[n]!;
     const it = await u.item(l.itemId);
     l.receivedQty = r.received;
-    moveStock(it, t.toId, l.qty, l.batchNo, t.date);
+    receiveWarehouseCost(it, t.toId, r.received, l.unitCost);
+    moveStock(it, t.toId, l.qty, l.batchNo, l.receivedDate ?? t.date, { mfgDate: l.mfgDate, expiryDate: l.expiryDate });
     stockLedger(u, t.number, it, t.toId, t.toName, "TRANSFER_IN", l.qty, l.unitCost, l.batchNo);
     if (r.received < l.qty) {
       l.shortReason = r.reason?.trim();
@@ -273,6 +273,7 @@ inventoryRouter.post("/transfers/:id/cancel", h((req) => write(req, async (u) =>
   for (const id of [...new Set(t.lines.map((l) => l.itemId))].sort()) await u.item(id);
   for (const l of t.lines) {
     const it = await u.item(l.itemId);
+    receiveWarehouseCost(it, t.fromId, l.qty, l.unitCost);
     moveStock(it, t.fromId, l.qty, l.batchNo);
     stockLedger(u, t.number, it, t.fromId, t.fromName, "TRANSFER_IN", l.qty, l.unitCost, l.batchNo, "Transfer cancelled");
   }
@@ -294,7 +295,7 @@ async function adjChecks(u: Uow, godownId: string, lines: { itemId: string; batc
     const batchNo = l.batchNo?.trim();
     const batch = batchNo ? it.batches.find((x) => x.batchNo === batchNo && x.godownId === godownId) : undefined;
     return { itemId: it.id, itemName: it.name, active: it.active, direction: l.direction, qty: l.qty,
-      onHand: stock?.onHand ?? 0, held: stock?.held ?? 0, unitCost: l.direction === "up" ? l.unitCost : it.costPrice,
+      onHand: stock?.onHand ?? 0, held: stock?.held ?? 0, unitCost: l.direction === "up" ? l.unitCost : warehouseUnitCost(it, godownId),
       trackBatches: it.trackBatches, batchNo: l.batchNo, batchQty: batch?.qty };
   });
 }
@@ -303,8 +304,8 @@ async function postAdjustment(u: Uow, a: Adjustment) {
     const it = await u.item(l.itemId);
     // Reductions use the current weighted-average cost, including approvals
     // posted after other stock movements have changed that cost.
-    if (l.direction === "down") l.unitCost = it.costPrice;
-    if (l.direction === "up") it.costPrice = weightedAverageCost(it.stock.reduce((x, y) => x + y.onHand, 0), it.costPrice, l.qty, l.unitCost);
+    if (l.direction === "down") l.unitCost = warehouseUnitCost(it, a.godownId);
+    if (l.direction === "up") receiveWarehouseCost(it, a.godownId, l.qty, l.unitCost);
     const q = l.direction === "up" ? l.qty : -l.qty;
     moveStock(it, a.godownId, q, l.batchNo, a.date);
     stockLedger(u, a.number, it, a.godownId, a.godownName, l.direction === "up" ? "ADJ_IN" : "ADJ_OUT", q, l.unitCost, l.batchNo, reasonLabel(a.reason) + (a.notes ? `: ${a.notes}` : ""));
@@ -344,7 +345,7 @@ inventoryRouter.post("/adjustments", h((req) => write(req, async (u) => {
   const lines = [];
   for (const l of input.lines) {
     const it = await u.item(l.itemId);
-    lines.push({ itemId: it.id, itemName: it.name, uom: it.baseUom, batchNo: l.batchNo?.trim() || undefined, direction: l.direction, qty: l.qty, unitCost: l.direction === "down" ? it.costPrice : l.unitCost });
+    lines.push({ itemId: it.id, itemName: it.name, uom: it.baseUom, batchNo: l.batchNo?.trim() || undefined, direction: l.direction, qty: l.qty, unitCost: l.direction === "down" ? warehouseUnitCost(it, input.godownId) : l.unitCost });
   }
   const v = adjustmentValue(lines);
   const pending = needsApproval(u.ctx.role, v.gross, await approvalLimit(u));

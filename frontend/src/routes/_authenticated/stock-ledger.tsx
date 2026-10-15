@@ -1,3 +1,4 @@
+import { warehouseUnitCost } from "@/lib/warehouse-stock";
 import { NativeSelect } from "@/components/app/form-bits";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -83,13 +84,13 @@ function LedgerPage() {
   });
   const invalidRange = Boolean(search.from && search.to && search.from > search.to);
   const view = q.data && !invalidRange ? buildLedger(q.data, { itemId: search.item, godownId, batchNo: search.batch, type: search.type, docNo: search.doc, from: search.from, to: search.to }) : null;
-  const hasBalance = !!search.item;
+  const hasBalance = !!search.item && godownId !== "all";
   const pages = Math.max(1, Math.ceil((view?.rows.length ?? 0) / 25));
   const page = Math.min(requestedPage, pages);
   const visible = view?.rows.slice((page - 1) * 25, page * 25) ?? [];
   const item = items.find((i) => i.id === search.item);
-  const batches = item ? [...new Set(item.batches.map((b) => b.batchNo))] : [];
-  const avgCost = item?.costPrice ?? 0;
+  const batches = item ? [...new Set(item.batches.filter(b => godownId === "all" || b.godownId === godownId).map((b) => b.batchNo))] : [];
+  const avgCost = item ? warehouseUnitCost(item, godownId) : 0;
   const hasFilters = Object.keys(search).length > 0;
 
   const exportCsv = () => {
@@ -143,6 +144,7 @@ function LedgerPage() {
         )}
       </div>
 
+      {godownId === "all" && <p className="mb-3 text-sm text-muted-foreground">Choose one warehouse to view its independent stock balance.</p>}
       {invalidRange && <p role="alert" className="mb-3 text-sm text-destructive">The From date must be on or before the To date.</p>}
       {q.isLoading && <LoadingRows rows={10} />}
       {q.error && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
@@ -153,7 +155,7 @@ function LedgerPage() {
             <Stat label="Shown movement in" value={hasBalance ? `+${formatQty(view.totalIn)}` : "—"} tone="text-success" />
             <Stat label="Shown movement out" value={hasBalance ? `−${formatQty(view.totalOut)}` : "—"} tone="text-ember" />
             <Stat label="Actual closing" value={hasBalance ? formatQty(view.closing) : "—"} />
-            <Stat label="Est. closing value" value={item ? formatINR(view.closing * avgCost, 0) : "Pick an item"} />
+            <Stat label="Est. closing value" value={hasBalance ? formatINR(view.closing * avgCost, 0) : "Pick item and warehouse"} />
           </div>
           {!item && <p className="mb-2 text-xs text-muted-foreground">Quantities across different items mix units — pick an item for a meaningful running balance.</p>}
           {(search.type || search.doc) && <p className="mb-2 text-xs text-muted-foreground">In/out totals include displayed movements; running and closing balances include all stock movements, even those hidden by type or document filters.</p>}
