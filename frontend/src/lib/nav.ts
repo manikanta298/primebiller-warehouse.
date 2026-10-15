@@ -4,6 +4,10 @@ import {
   ShieldCheck, Hash, Tags,
 } from "lucide-react";
 
+// Temporary menu visibility only. Set true to restore the CA link on desktop and mobile.
+// Keep the module, routes and role permissions available independently of this switch.
+export const SHOW_CA_IN_SIDEBAR = false;
+
 export const NAV = [
   {
     section: "Overview",
@@ -49,7 +53,7 @@ export const NAV = [
     section: "Operations",
     items: [
       { to: "/import", label: "Bulk import", icon: Upload },
-      { to: "/ca", label: "Chartered Accountant", icon: ShieldCheck },
+      ...(SHOW_CA_IN_SIDEBAR ? [{ to: "/ca", label: "Chartered Accountant", icon: ShieldCheck } as const] : []),
       { to: "/reports", label: "Reports & GSTR-1", icon: BarChart3 },
       { to: "/print-profiles", label: "Print profiles", icon: Printer },
       { to: "/users", label: "Users & roles", icon: ShieldCheck },
