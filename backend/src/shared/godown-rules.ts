@@ -49,7 +49,7 @@ export function warehouseStockSummary(items: Item[], godownId: string): Warehous
     if (qty !== 0 || reserved !== 0) itemCount++;
     onHand += qty;
     held += reserved;
-    stockValue += qty * item.costPrice;
+    stockValue += qty * (stock.unitCost ?? item.costPrice);
   }
   return { onHand, held, available: onHand - held, itemCount, stockValue: Math.round(stockValue * 100) / 100 };
 }

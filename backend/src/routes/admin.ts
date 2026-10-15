@@ -1,3 +1,4 @@
+import { warehouseUnitCost } from "../shared/warehouse-stock.js";
 /** Users & roles, settings, numbering series, print profiles, search and reports. */
 import { Router } from "express";
 import { createCipheriv, randomBytes } from "node:crypto";
@@ -237,7 +238,9 @@ adminRouter.get("/reports/receivables", h((req) => read(req, async (u) => receiv
 adminRouter.get("/reports/item-sales", h((req) => read(req, async (u) => {
   const [from, to] = range(req);
   const items = await loadItems(u.conn, u.ctx.orgId);
-  return itemSales((await u.docs_("invoices", "doc_date BETWEEN ? AND ?", [from, to])).map(refreshInvoice), (id) => items.find((i) => i.id === id)?.costPrice ?? 0);
+  const dispatches = await u.docs_("challans");
+  const lineWarehouse = new Map(dispatches.flatMap(c => c.lines.map(l => [l.soLineId, c.godownId] as const)));
+  return itemSales((await u.docs_("invoices", "doc_date BETWEEN ? AND ?", [from, to])).map(refreshInvoice), (id, soLineId) => { const item = items.find(i => i.id === id); return item ? warehouseUnitCost(item, lineWarehouse.get(soLineId) ?? "") : 0; });
 })));
 adminRouter.get("/reports/gstr1", h((req) => read(req, async (u) => {
   const period = z.string().refine(validReportMonth, "Period must be a valid month in YYYY-MM format").parse(req.query["period"]);

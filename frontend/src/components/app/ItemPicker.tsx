@@ -66,7 +66,7 @@ export function ItemPicker({ value, godownId, onPick, onClear, disabled }: { val
             <span>Item</span><span className="text-right">On hand</span><span className="text-right">Free</span>
           </div>
           {list.map((i, idx) => {
-            const s = stockFor(i, godownId);
+            const s = stockFor(i, !godownId || godownId === "all" ? "__none__" : godownId);
             return (
               <button
                 type="button"
@@ -80,8 +80,8 @@ export function ItemPicker({ value, godownId, onPick, onClear, disabled }: { val
                   <SearchHighlight text={i.name} query={q}/>
                   <span className="num block text-xs text-muted-foreground">{i.hsn} · {i.gstRate}% · {formatINR(i.salePrice)}/{i.baseUom}</span>
                 </span>
-                <span className="num text-right">{formatQty(s.onHand)}</span>
-                <span className={cn("num text-right font-medium", s.free <= 0 ? "text-destructive" : s.free < s.reorder && "text-ember")}>{formatQty(s.free)}</span>
+                <span className="num text-right">{!godownId || godownId === "all" ? "—" : formatQty(s.onHand)}</span>
+                <span className={cn("num text-right font-medium", s.free <= 0 ? "text-destructive" : s.free < s.reorder && "text-ember")}>{!godownId || godownId === "all" ? "—" : formatQty(s.free)}</span>
               </button>
             );
           })}

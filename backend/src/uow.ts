@@ -66,7 +66,7 @@ export async function hydrateItems(conn: Conn, itemRows: Row[], lock = false, al
     id: r["id"], sku: r["sku"], name: r["name"], category: r["category"], brand: r["brand"], hsn: r["hsn"], gstRate: Number(r["gst_rate"]),
     baseUom: r["base_uom"], conversions: typeof r["conversions"] === "string" ? JSON.parse(r["conversions"]) : r["conversions"],
     salePrice: Number(r["sale_price"]), costPrice: Number(r["cost_price"]), allowNegative: bool(r["allow_negative"]), trackBatches: bool(r["track_batches"]), active: bool(r["active"]),
-    stock: st.filter((s) => s["item_id"] === r["id"] && (allowedGodowns === undefined || allowedGodowns.includes(s["godown_id"]))).map((s) => ({ godownId: s["godown_id"], onHand: Number(s["on_hand"]), held: Number(s["held"]), reorderLevel: Number(s["reorder_level"]), maxLevel: Number(s["max_level"]) })),
+    stock: st.filter((s) => s["item_id"] === r["id"] && (allowedGodowns === undefined || allowedGodowns.includes(s["godown_id"]))).map((s) => ({ godownId: s["godown_id"], onHand: Number(s["on_hand"]), held: Number(s["held"]), reorderLevel: Number(s["reorder_level"]), maxLevel: Number(s["max_level"]), ...(s["unit_cost"] != null ? { unitCost: Number(s["unit_cost"]) } : {}) })),
     batches: bt.filter((b) => b["item_id"] === r["id"] && (allowedGodowns === undefined || allowedGodowns.includes(b["godown_id"]))).map((b) => {
       const x: Batch = { id: b["id"], batchNo: b["batch_no"], godownId: b["godown_id"], qty: Number(b["qty"]), mfgDate: b["mfg_date"], receivedDate: b["received_date"] };
       if (b["expiry_date"]) x.expiryDate = b["expiry_date"];
@@ -76,8 +76,9 @@ export async function hydrateItems(conn: Conn, itemRows: Row[], lock = false, al
   }));
 }
 
-export async function saveItem(conn: Conn, orgId: string, it: Item) {
-  await exec(conn,
+export async function saveItem(conn: Conn, orgId: string, it: Item, original?: Item) {
+  const master = (item: Item) => { const { stock, batches, ...fields } = item; return fields; };
+  if (!original || JSON.stringify(master(it)) !== JSON.stringify(master(original))) await exec(conn,
     `INSERT INTO items (id, org_id, sku, name, category, brand, hsn, gst_rate, base_uom, conversions, sale_price, cost_price, allow_negative, track_batches, active)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON DUPLICATE KEY UPDATE sku=VALUES(sku), name=VALUES(name), category=VALUES(category), brand=VALUES(brand), hsn=VALUES(hsn), gst_rate=VALUES(gst_rate),
@@ -85,12 +86,14 @@ export async function saveItem(conn: Conn, orgId: string, it: Item) {
        allow_negative=VALUES(allow_negative), track_batches=VALUES(track_batches), active=VALUES(active)`,
     [it.id, orgId, it.sku, it.name, it.category, it.brand, it.hsn, it.gstRate, it.baseUom, JSON.stringify(it.conversions), it.salePrice, it.costPrice, it.allowNegative ? 1 : 0, it.trackBatches ? 1 : 0, it.active ? 1 : 0]);
   for (const s of it.stock) {
+    if (original && JSON.stringify(s) === JSON.stringify(original.stock.find(x => x.godownId === s.godownId))) continue;
     await exec(conn,
-      `INSERT INTO item_stock (org_id, item_id, godown_id, on_hand, held, reorder_level, max_level) VALUES (?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE on_hand=VALUES(on_hand), held=VALUES(held), reorder_level=VALUES(reorder_level), max_level=VALUES(max_level)`,
-      [orgId, it.id, s.godownId, s.onHand, s.held, s.reorderLevel, s.maxLevel]);
+      `INSERT INTO item_stock (org_id, item_id, godown_id, on_hand, held, reorder_level, max_level, unit_cost) VALUES (?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE on_hand=VALUES(on_hand), held=VALUES(held), reorder_level=VALUES(reorder_level), max_level=VALUES(max_level), unit_cost=VALUES(unit_cost)`,
+      [orgId, it.id, s.godownId, s.onHand, s.held, s.reorderLevel, s.maxLevel, s.unitCost ?? null]);
   }
   for (const b of it.batches) {
+    if (original && JSON.stringify(b) === JSON.stringify(original.batches.find(x => x.id === b.id))) continue;
     await exec(conn,
       `INSERT INTO batches (id, org_id, item_id, godown_id, batch_no, heat_no, qty, mfg_date, expiry_date, received_date) VALUES (?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE qty=VALUES(qty), heat_no=VALUES(heat_no), expiry_date=VALUES(expiry_date)`,
@@ -100,6 +103,7 @@ export async function saveItem(conn: Conn, orgId: string, it: Item) {
 
 export class Uow {
   private items = new Map<string, Item>();
+  private originalItems = new Map<string, Item>();
   private parties = new Map<string, Party>();
   private dirtyParties = new Set<string>();
   private docs = new Map<string, { key: DocKey; doc: any; dirty: boolean }>();
@@ -117,6 +121,7 @@ export class Uow {
     const r = await one(this.conn, `SELECT * FROM items WHERE org_id = ? AND id = ?${this.sfx}`, [this.ctx.orgId, id]);
     if (!r) throw new ApiError(404, "not_found", "Item not found");
     const it = (await hydrateItems(this.conn, [r], this.lock, warehouseIds(this.ctx)))[0]!;
+    this.originalItems.set(id, structuredClone(it));
     this.items.set(id, it);
     return it;
   }
@@ -204,7 +209,7 @@ export class Uow {
 
   async flush() {
     if (!this.lock) throw new Error("read-only unit of work");
-    for (const it of this.items.values()) await saveItem(this.conn, this.ctx.orgId, it);
+    for (const it of this.items.values()) await saveItem(this.conn, this.ctx.orgId, it, this.originalItems.get(it.id));
     for (const id of this.dirtyParties) {
       const p = this.parties.get(id)!;
       await exec(this.conn, "UPDATE parties SET outstanding = ? WHERE org_id = ? AND id = ?", [Math.round(p.outstanding * 100) / 100, this.ctx.orgId, id]);

@@ -1,3 +1,4 @@
+import { warehouseUnitCost } from "../shared/warehouse-stock.js";
 /** Sales orders, delivery challans + e-way bills, tax invoices, receipts and advances. */
 import { Router } from "express";
 import { z } from "zod";
@@ -152,7 +153,7 @@ async function postChallan(u: Uow, c: Challan, sign: 1 | -1) {
       const b = a.batchNo ? it.batches.find((x) => x.batchNo === a.batchNo && x.godownId === c.godownId) : undefined;
       if (b) b.qty -= sign * a.qty;
       u.ledger({ at, docNo: c.number, docType: "challan", soId: c.soId, type: sign === 1 ? "DC_ISSUE" : "DC_REVERSE", itemId: it.id, itemName: it.name,
-        godownId: c.godownId, godownName: c.godownName, ...(a.batchNo ? { batchNo: a.batchNo } : {}), qty: -sign * a.qty, unitCost: it.costPrice, user: u.ctx.userName });
+        godownId: c.godownId, godownName: c.godownName, ...(a.batchNo ? { batchNo: a.batchNo } : {}), qty: -sign * a.qty, unitCost: warehouseUnitCost(it, c.godownId), user: u.ctx.userName });
     }
     const sl = o.lines.find((x) => x.id === l.soLineId);
     if (sl) sl.deliveredQty += sign * l.qty;

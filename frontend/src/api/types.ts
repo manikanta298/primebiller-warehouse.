@@ -74,6 +74,7 @@ export interface Batch {
 
 export interface ItemGodownStock {
   godownId: string;
+  unitCost?: number;
   onHand: number;
   held: number;
   reorderLevel: number;
@@ -531,7 +532,7 @@ export interface GrnInput {
 }
 
 // ---------- Transfers ----------
-export interface TransferLine { itemId: string; itemName: string; uom: string; batchNo?: string | undefined; qty: number; receivedQty?: number | undefined; shortReason?: string | undefined; unitCost: number }
+export interface TransferLine { mfgDate?: string | undefined; expiryDate?: string | undefined; receivedDate?: string | undefined; itemId: string; itemName: string; uom: string; batchNo?: string | undefined; qty: number; receivedQty?: number | undefined; shortReason?: string | undefined; unitCost: number }
 export interface Transfer {
   id: string; number: string; date: string; fromId: string; fromName: string; toId: string; toName: string;
   status: "in_transit" | "received" | "partially_received" | "cancelled"; vehicleNo: string; reason: string;

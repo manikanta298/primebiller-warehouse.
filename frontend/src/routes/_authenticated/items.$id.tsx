@@ -1,3 +1,5 @@
+import { InventoryWarehousePicker } from "@/components/app/InventoryWarehousePicker";
+import { warehouseStockValue } from "@/lib/warehouse-stock";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -88,7 +90,8 @@ function ItemDetail() {
   };
   const field = (change: Partial<Item>) => set((current) => ({ ...current, ...change }));
   const reset = () => setEdit(null);
-  const all = stockFor(d, "all");
+  const gid = session?.godownId ?? "all";
+  const all = stockFor(d, gid === "all" ? "__none__" : gid);
   const margin = Number.isFinite(d.salePrice) && Number.isFinite(d.costPrice) && d.salePrice > 0 ? `${(((d.salePrice - d.costPrice) / d.salePrice) * 100).toFixed(1)}%` : "—";
   const gName = (gid: string) => godowns.find((g) => g.id === gid)?.name ?? gid;
   const hasInventory = hasItemInventory(data!);
@@ -157,19 +160,20 @@ function ItemDetail() {
       )}
       {dirty && issues.length === 0 && <p className="mb-4 text-xs text-muted-foreground" role="status">You have unsaved changes.</p>}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <InventoryWarehousePicker />
+      {gid !== "all" && <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
         {[
           ["On hand", `${formatQty(all.onHand)} ${d.baseUom}`],
           ["Held for orders", formatQty(all.held)],
           ["Free", formatQty(all.free)],
-          ["Stock value", formatCompactINR(all.onHand * d.costPrice)],
+          ["Stock value", formatCompactINR(warehouseStockValue(d, gid))],
           ["Margin", margin],
         ].map(([k, v]) => (
           <div key={k} className="rounded-lg border bg-card px-4 py-3">
             <div className="eyebrow">{k}</div><div className="num mt-1 text-lg font-semibold">{v}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
       <Tabs defaultValue="general">
         <TabsList className="mb-2 flex h-auto w-fit max-w-full flex-wrap">

@@ -25,7 +25,7 @@ async function godownValues(conn: Parameters<typeof rows>[0], orgId: string) {
   const result = await rows(conn, `SELECT s.godown_id,
     COALESCE(SUM(s.on_hand), 0) qty,
     COALESCE(SUM(s.held), 0) held,
-    COALESCE(SUM(s.on_hand * i.cost_price), 0) value,
+    COALESCE(SUM(s.on_hand * COALESCE(s.unit_cost, i.cost_price)), 0) value,
     SUM(CASE WHEN s.on_hand <> 0 OR s.held <> 0 THEN 1 ELSE 0 END) item_count
     FROM item_stock s JOIN items i ON i.id = s.item_id AND i.org_id = s.org_id
     WHERE s.org_id = ? GROUP BY s.godown_id`, [orgId]);
@@ -218,7 +218,7 @@ coreRouter.patch("/items/:id", h(async (req) => {
       throw new ApiError(409, "duplicate_sku", `SKU ${sku} already exists in this organisation`);
     }
     const normalised = normaliseItemDraft(it);
-    await saveItem(conn, req.ctx.orgId, normalised);
+    await saveItem(conn, req.ctx.orgId, normalised, original);
     return normalised;
   });
 }));

@@ -5,7 +5,7 @@ import { useQuotationAutosave } from "@/lib/use-quotation-autosave";
 import { QuotationsPage } from "@/routes/_authenticated/quotations";
 const mock = vi.hoisted(() => ({ role: "Owner", quote: null as any, navigate: vi.fn(), print: vi.fn(), api: { getQuotationDraft: vi.fn(), saveQuotationDraft: vi.fn(), getQuotationDefaults: vi.fn(), saveParty: vi.fn(), createItem: vi.fn(), listQuotations: vi.fn(), getQuotation: vi.fn(), listParties: vi.fn(), listGodowns: vi.fn(), listItems: vi.fn(), saveQuotation: vi.fn(), quotationAction: vi.fn(), convertQuotation: vi.fn(), recordReceipt: vi.fn() } }));
 vi.mock("@/api/client", () => ({ api: mock.api }));
-vi.mock("@/lib/session", () => ({ useSession: () => ({ orgId: "org1", godownId: "all", user: { id: "u1", role: mock.role }, orgs: [{ id: "org1", name: "Test Business", gstin: "", stateCode: "36" }] }) }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ orgId: "org1", godownId: "g1", user: { id: "u1", role: mock.role }, orgs: [{ id: "org1", name: "Test Business", gstin: "", stateCode: "36" }] }) }));
 vi.mock("@tanstack/react-router", () => ({ createFileRoute: () => (options: unknown) => options, useNavigate: () => mock.navigate, Link: ({ children }: any) => <a>{children}</a> }));
 function setup() { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><QuotationsPage /></QueryClientProvider>); }
 beforeEach(() => {
@@ -58,7 +58,7 @@ describe("quotations UI", () => {
     expect(document.getElementById("quotation-print")?.textContent).toContain("This quotation is not a tax invoice");
   });
   it("shows free stock after held quantities and searches by SKU", async () => {
-    mock.api.listItems.mockResolvedValue([{ id: "i1", name: "Item", sku: "I1", hsn: "1234", baseUom: "PCS", gstRate: 18, salePrice: 100, active: true, stock: [{ onHand: 8, held: 3 }] }]);
+    mock.api.listItems.mockResolvedValue([{ id: "i1", name: "Item", sku: "I1", hsn: "1234", baseUom: "PCS", gstRate: 18, salePrice: 100, active: true, stock: [{ godownId: "g1", onHand: 8, held: 3 }, { godownId: "g2", onHand: 50, held: 0 }] }]);
     setup(); fireEvent.click(await screen.findByRole("button", { name: "New quotation" }));
     fireEvent.change(await screen.findByLabelText("Search items 1"), { target: { value: "I1" } });
     await screen.findByRole("option", { name: /Item · I1/ });
