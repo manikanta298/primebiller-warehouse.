@@ -146,6 +146,8 @@ export interface LinkedDoc {
 
 export type QuotationStatus = "draft" | "issued" | "accepted" | "converted" | "cancelled";
 export interface QuotationInput extends SalesOrderInput { validUntil: string; terms: string }
+/** Personal work in progress, including incomplete inputs; never a stock document. */
+export interface QuotationDraft { version: number; input: QuotationInput | null }
 export interface Quotation extends Omit<SalesOrder, "status" | "number"> {
   number: string; status: QuotationStatus; validUntil: string; terms: string;
   supply: "intra" | "inter";

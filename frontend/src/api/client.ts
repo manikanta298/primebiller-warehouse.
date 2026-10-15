@@ -5,7 +5,7 @@
  */
 import * as mock from "./mock";
 import { ApiError } from "./mock";
-import type { Quotation, QuotationInput, AppUser, AppUserInput, NumberSeries, NumberSeriesInput, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Adjustment, AdjustmentInput, Transfer, TransferInput, ReceiveTransferInput, PurchaseOrder, PurchaseOrderInput, Grn, GrnInput, Receipt, ReceiptInput, Invoice, Advance, IssueInvoiceInput, Challan, DispatchInput, EwbAction,
+import type { Quotation, QuotationInput, QuotationDraft, AppUser, AppUserInput, NumberSeries, NumberSeriesInput, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Adjustment, AdjustmentInput, Transfer, TransferInput, ReceiveTransferInput, PurchaseOrder, PurchaseOrderInput, Grn, GrnInput, Receipt, ReceiptInput, Invoice, Advance, IssueInvoiceInput, Challan, DispatchInput, EwbAction,
   Dashboard,
   Godown,
   WarehouseActivity,
@@ -176,10 +176,12 @@ export const api = {
         ? http("PUT", `/masters/${kind}/${row.id}`, row)
         : http("POST", `/masters/${kind}`, row),
 
+  getQuotationDraft: (key: string): Promise<QuotationDraft> => usingMock ? mock.getQuotationDraft(key) : http("GET", `/quotation-drafts/${key}`),
+  saveQuotationDraft: (key: string, version: number, input: QuotationInput): Promise<QuotationDraft> => usingMock ? mock.saveQuotationDraft(key, version, input) : http("PUT", `/quotation-drafts/${key}`, { version, input }),
   getQuotationDefaults: (): Promise<{ terms: string; notes: string }> => usingMock ? mock.getSettings().then(s => ({ terms: s.quotationTerms ?? "", notes: s.quotationNotes ?? "" })) : http("GET", "/quotation-defaults"),
   listQuotations: (): Promise<Quotation[]> => usingMock ? mock.listQuotations() : http("GET", "/quotations"),
   getQuotation: (id: string): Promise<Quotation> => usingMock ? mock.getQuotation(id) : http("GET", `/quotations/${id}`),
-  saveQuotation: (input: QuotationInput): Promise<Quotation> => usingMock ? mock.saveQuotation(input) : http(input.id ? "PUT" : "POST", input.id ? `/quotations/${input.id}` : "/quotations", input),
+  saveQuotation: (input: QuotationInput, draftVersion?: number): Promise<Quotation> => usingMock ? mock.saveQuotation(input, draftVersion) : http(input.id ? "PUT" : "POST", input.id ? `/quotations/${input.id}` : "/quotations", { ...input, draftVersion }),
   quotationAction: (id: string, action: "issue" | "accept" | "cancel"): Promise<Quotation> => usingMock ? mock.quotationAction(id, action) : http("POST", `/quotations/${id}/${action}`, {}),
   convertQuotation: (id: string, godownId?: string): Promise<SalesOrder> => usingMock ? mock.convertQuotation(id, godownId) : http("POST", `/quotations/${id}/convert`, godownId ? { godownId } : {}),
   deleteRecord: (kind: "items" | "parties" | "warehouses", id: string, orgId: string): Promise<{ deleted: boolean; id: string }> => usingMock ? mock.deleteRecord(kind,id,orgId) : http("DELETE", kind === "warehouses" ? `/orgs/${orgId}/godowns/${id}` : `/${kind}/${id}`),

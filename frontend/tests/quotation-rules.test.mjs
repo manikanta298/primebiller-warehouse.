@@ -10,7 +10,8 @@ test('quotation dates and lines validate without a stock availability requiremen
 });
 test('acceptance and conversion require the expected status and unexpired validity', () => {
   assert.equal(quotationActionProblem({ status: 'accepted', validUntil: '2026-10-11' }, 'convert', '2026-10-11'), undefined);
-  for (const status of ['draft', 'issued', 'cancelled']) assert.ok(quotationActionProblem({ status, validUntil: '2026-10-18' }, 'convert', '2026-10-11'));
+  for (const status of ['draft', 'issued']) assert.equal(quotationActionProblem({ status, validUntil: '2026-10-18' }, 'convert', '2026-10-11'), undefined);
+  for (const status of ['converted', 'cancelled']) assert.ok(quotationActionProblem({ status, validUntil: '2026-10-18' }, 'convert', '2026-10-11'));
   assert.ok(quotationActionProblem({ status: 'accepted', validUntil: '2026-10-10' }, 'convert', '2026-10-11'));
 });
 test('linked advances automatically apply only to their own order and general advances remain optional', () => {

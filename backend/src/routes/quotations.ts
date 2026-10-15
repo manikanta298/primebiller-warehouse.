@@ -1,4 +1,4 @@
-import { one } from "../db.js";
+import { one, exec } from "../db.js";
 import { Router } from "express";
 import { z } from "zod";
 import { h, read, write } from "../http.js";
@@ -6,6 +6,7 @@ import { requirePerm } from "../auth.js";
 import { ApiError } from "../errors.js";
 import { today, nowIso } from "../config.js";
 import { newId } from "../uow.js";
+import type { Uow } from "../uow.js";
 import { computeTotals, supplyType } from "../shared/gst.js";
 import { orderCustomerEligible } from "../shared/sales-order-rules.js";
 import { quotationProblems, quotationActionProblem } from "../shared/quotation-rules.js";
@@ -18,6 +19,37 @@ const inputSchema = z.object({
   notes: z.string().max(2000), terms: z.string().max(2000),
   lines: z.array(z.object({ itemId: z.string().min(1).max(40), itemName: z.string().max(200), hsn: z.string().max(8), uom: z.string().max(12), qty: z.number().finite(), rate: z.number().finite(), discountPct: z.number().finite(), gstRate: z.number().finite() }).strict()).min(1).max(200),
 }).strict();
+// Relax only business completeness, not field types/size limits. No counters or stock writes.
+const draftInputSchema = inputSchema.extend({
+  customerId: z.string().max(40),
+  lines: inputSchema.shape.lines.element.extend({ itemId: z.string().max(40) }).array().max(200),
+});
+const draftKey = (key: unknown) => z.string().min(1).max(40).regex(/^[A-Za-z0-9_-]+$/).parse(key);
+async function draftRow(u: Uow, key: string, lock = false) {
+  if (key !== "new") {
+    const q = await u.doc("quotations", key);
+    if (!q) throw new ApiError(404, "not_found", "Quotation not found");
+    if (lock && q.status !== "draft") throw new ApiError(409, "invalid_status", "Only draft quotations can be edited");
+  }
+  const params = [u.ctx.orgId, u.ctx.userId, key];
+  if (lock) await exec(u.conn, "INSERT IGNORE INTO quotation_drafts (org_id, user_id, draft_key, version, body) VALUES (?,?,?,0,NULL)", params);
+  return one(u.conn, `SELECT version, body FROM quotation_drafts WHERE org_id = ? AND user_id = ? AND draft_key = ?${lock ? " FOR UPDATE" : ""}`, params);
+}
+quotationRouter.get("/quotation-drafts/:key", h(req => read(req, async u => {
+  requirePerm(u.ctx, "salesOrders", "Your role cannot edit quotations");
+  const row = await draftRow(u, draftKey(req.params["key"]));
+  return { version: Number(row?.["version"] ?? 0), input: row?.["body"] ? (typeof row["body"] === "string" ? JSON.parse(row["body"]) : row["body"]) : null };
+})));
+quotationRouter.put("/quotation-drafts/:key", h(req => write(req, async u => {
+  requirePerm(u.ctx, "salesOrders", "Your role cannot edit quotations");
+  const key = draftKey(req.params["key"]);
+  const { version, input } = z.object({ version: z.number().int().nonnegative(), input: draftInputSchema }).strict().parse(req.body);
+  if ((input.id ?? "new") !== key) throw new ApiError(422, "validation", "Draft ID does not match the URL");
+  const row = await draftRow(u, key, true);
+  if (Number(row!["version"]) !== version) throw new ApiError(409, "draft_conflict", "This draft changed in another tab. Reopen it before editing.");
+  await exec(u.conn, "UPDATE quotation_drafts SET version = version + 1, body = ? WHERE org_id = ? AND user_id = ? AND draft_key = ?", [JSON.stringify(input), u.ctx.orgId, u.ctx.userId, key]);
+  return { version: version + 1, input };
+})));
 quotationRouter.get("/quotation-defaults", h(req => read(req, async u => {
   const row = await one(u.conn, "SELECT body FROM org_settings WHERE org_id = ?", [u.ctx.orgId]);
   const settings = row ? (typeof row["body"] === "string" ? JSON.parse(row["body"]) : row["body"]) : {};
@@ -32,12 +64,19 @@ quotationRouter.get("/quotations/:id", h(req => read(req, async u => {
 const save = h(req => write(req, async u => {
   requirePerm(u.ctx, "salesOrders", "Your role cannot create quotations");
   if (req.body?.id && req.body.id !== req.params["id"]) throw new ApiError(422, "validation", "Quotation ID does not match the URL");
-  const input = inputSchema.parse({ ...req.body, id: req.params["id"] });
+  const { draftVersion, ...body } = z.object({ draftVersion: z.number().int().nonnegative().optional() }).passthrough().parse(req.body);
+  const input = inputSchema.parse({ ...body, id: req.params["id"] });
   const problems = quotationProblems(input, today());
   if (problems.length) throw new ApiError(422, "validation", problems[0]!, problems);
   const previous = input.id ? await u.doc("quotations", input.id) : undefined;
   if (input.id && !previous) throw new ApiError(404, "not_found", "Quotation not found");
   if (previous && previous.status !== "draft") throw new ApiError(409, "invalid_status", "Only draft quotations can be edited");
+  if (draftVersion !== undefined) {
+    const row = await draftRow(u, input.id ?? "new", true);
+    if (Number(row!["version"]) !== draftVersion) throw new ApiError(409, "draft_conflict", "This draft changed in another tab. Reopen it before saving.");
+    // Keep a tombstone/version so a stale tab cannot recreate an already-saved draft.
+    await exec(u.conn, "UPDATE quotation_drafts SET version = version + 1, body = NULL WHERE org_id = ? AND user_id = ? AND draft_key = ?", [u.ctx.orgId, u.ctx.userId, input.id ?? "new"]);
+  }
   const cust = await u.party(input.customerId);
   if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked)) throw new ApiError(422, "validation", "Choose an active customer");
   const godown = input.godownId ? await u.godown(input.godownId) : undefined;
@@ -105,6 +144,7 @@ for (const action of ["issue", "accept", "cancel", "convert"] as const) {
           a.salesOrderId = o.id; receipt.salesOrderId = o.id;
           u.put("advances", a); u.put("receipts", receipt);
         }
+        q.acceptedAt ??= nowIso(); q.acceptedBy ??= u.ctx.userName;
         q.status = "converted"; q.salesOrderId = o.id;
         u.put("quotations", q); u.put("salesOrders", o);
         return o;
