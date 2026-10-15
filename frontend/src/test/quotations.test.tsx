@@ -1,16 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useQuotationAutosave } from "@/lib/use-quotation-autosave";
 import { QuotationsPage } from "@/routes/_authenticated/quotations";
-const mock = vi.hoisted(() => ({ role: "Owner", quote: null as any, navigate: vi.fn(), print: vi.fn(), api: { getQuotationDefaults: vi.fn(), saveParty: vi.fn(), createItem: vi.fn(), listQuotations: vi.fn(), getQuotation: vi.fn(), listParties: vi.fn(), listGodowns: vi.fn(), listItems: vi.fn(), saveQuotation: vi.fn(), quotationAction: vi.fn(), convertQuotation: vi.fn(), recordReceipt: vi.fn() } }));
+const mock = vi.hoisted(() => ({ role: "Owner", quote: null as any, navigate: vi.fn(), print: vi.fn(), api: { getQuotationDraft: vi.fn(), saveQuotationDraft: vi.fn(), getQuotationDefaults: vi.fn(), saveParty: vi.fn(), createItem: vi.fn(), listQuotations: vi.fn(), getQuotation: vi.fn(), listParties: vi.fn(), listGodowns: vi.fn(), listItems: vi.fn(), saveQuotation: vi.fn(), quotationAction: vi.fn(), convertQuotation: vi.fn(), recordReceipt: vi.fn() } }));
 vi.mock("@/api/client", () => ({ api: mock.api }));
 vi.mock("@/lib/session", () => ({ useSession: () => ({ orgId: "org1", godownId: "all", user: { id: "u1", role: mock.role }, orgs: [{ id: "org1", name: "Test Business", gstin: "", stateCode: "36" }] }) }));
 vi.mock("@tanstack/react-router", () => ({ createFileRoute: () => (options: unknown) => options, useNavigate: () => mock.navigate, Link: ({ children }: any) => <a>{children}</a> }));
 function setup() { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><QuotationsPage /></QueryClientProvider>); }
 beforeEach(() => {
   vi.clearAllMocks(); mock.role = "Owner";
+  vi.spyOn(window, "confirm").mockReturnValue(true);
   const date = new Date(Date.now() + 330 * 60_000).toISOString().slice(0,10);
   mock.quote = { id: "q1", number: "QT/26-27/00001", date, validUntil: "2099-12-31", customerId: "c1", customerName: "Test Customer", godownId: "g1", placeOfSupplyCode: "36", placeOfSupplyName: "Telangana", status: "issued", lines: [{ id: "l1", itemId: "i1", itemName: "Item", hsn: "1234", uom: "PCS", qty: 1, deliveredQty: 0, rate: 100, discountPct: 0, gstRate: 18 }], grandTotal: 118, supply: "intra", notes: "", terms: "Valid prices", linked: [], payments: [], createdAt: date, createdBy: "Owner" };
+  mock.api.getQuotationDraft.mockResolvedValue({ version: 0, input: null });
+  mock.api.saveQuotationDraft.mockImplementation(async (_key, version, input) => ({ version: version + 1, input }));
   mock.api.getQuotationDefaults.mockResolvedValue({ terms: "Default quote terms", notes: "Default quote notes" });
   mock.api.listQuotations.mockImplementation(async () => [mock.quote]);
   mock.api.getQuotation.mockImplementation(async () => mock.quote);
@@ -21,16 +25,18 @@ beforeEach(() => {
   mock.api.convertQuotation.mockResolvedValue({ id: "so1" });
   vi.spyOn(window, "print").mockImplementation(mock.print);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 describe("quotations UI", () => {
-  it("records acceptance and converts without a mandatory payment", async () => {
+  it("converts directly without separate issue, acceptance or mandatory payment", async () => {
     setup(); fireEvent.click(await screen.findByRole("button", { name: "QT/26-27/00001" }));
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    fireEvent.click(await screen.findByRole("button", { name: "Record acceptance" }));
-    await waitFor(() => expect(mock.api.quotationAction).toHaveBeenCalledWith("q1", "accept"));
+    await screen.findByRole("button", { name: "Convert to Sales Order" });
+    expect(screen.queryByRole("button", {name:"Record acceptance"})).toBeNull();
+    expect(screen.queryByRole("button", {name:"Issue quotation"})).toBeNull();
     fireEvent.click(await screen.findByRole("button", { name: "Convert to Sales Order" }));
     await waitFor(() => expect(mock.navigate).toHaveBeenCalledWith({ to: "/sales-orders/$id", params: { id: "so1" } }));
     expect(mock.api.recordReceipt).not.toHaveBeenCalled();
+    expect(mock.api.quotationAction).not.toHaveBeenCalled();
   });
   it("requires a dispatch warehouse only when converting a warehouse-free quote", async () => {
     mock.quote.status = "accepted"; mock.quote.godownId = ""; setup();
@@ -54,7 +60,7 @@ describe("quotations UI", () => {
   it("shows free stock after held quantities and searches by SKU", async () => {
     mock.api.listItems.mockResolvedValue([{ id: "i1", name: "Item", sku: "I1", hsn: "1234", baseUom: "PCS", gstRate: 18, salePrice: 100, active: true, stock: [{ onHand: 8, held: 3 }] }]);
     setup(); fireEvent.click(await screen.findByRole("button", { name: "New quotation" }));
-    fireEvent.change(screen.getByLabelText("Search items 1"), { target: { value: "I1" } });
+    fireEvent.change(await screen.findByLabelText("Search items 1"), { target: { value: "I1" } });
     await screen.findByRole("option", { name: /Item · I1/ });
     fireEvent.keyDown(screen.getByLabelText("Search items 1"), { key: "Enter" });
     expect(screen.getByText("Available: 5 PCS")).toBeTruthy();
@@ -68,7 +74,7 @@ describe("quotations UI", () => {
     fireEvent.keyDown(screen.getByLabelText("Search customers"), { key: "Enter" });
     expect(screen.getByText("IGST").parentElement?.textContent).toContain("18");
     expect(screen.getByText("CGST").parentElement?.textContent).toContain("0");
-    fireEvent.change(screen.getByLabelText("Search customers"), { target: { value: "missing" } });
+    fireEvent.change(await screen.findByLabelText("Search customers"), { target: { value: "missing" } });
     expect(screen.getByText("IGST").parentElement?.textContent).toContain("18");
     expect(screen.getByRole("status").textContent).toContain("No matching");
     expect(screen.getByText("Out of stock")).toBeTruthy();
@@ -99,7 +105,7 @@ describe("quotations UI", () => {
     let finish!: (value: { terms: string; notes: string }) => void;
     mock.api.getQuotationDefaults.mockImplementation(() => new Promise(resolve => { finish = resolve; })); setup();
     fireEvent.click(await screen.findByRole("button", { name: "New quotation" }));
-    fireEvent.change(screen.getByLabelText("Terms and conditions"), { target: { value: "My manual terms" } });
+    fireEvent.change(await screen.findByLabelText("Terms and conditions"), { target: { value: "My manual terms" } });
     finish({ terms: "Late default", notes: "Default note" });
     await waitFor(() => expect(screen.getByLabelText("Notes")).toHaveValue("Default note"));
     expect(screen.getByLabelText("Terms and conditions")).toHaveValue("My manual terms");
@@ -107,15 +113,81 @@ describe("quotations UI", () => {
   it("submits a new quotation without a warehouse, with search and item master tax data", async () => {
     mock.api.saveQuotation.mockResolvedValue({ ...mock.quote, status: "draft" }); setup();
     fireEvent.click(await screen.findByRole("button", { name: "New quotation" }));
-    fireEvent.change(screen.getByLabelText("Search customers"), { target: { value: "Test" } });
+    fireEvent.change(await screen.findByLabelText("Search customers"), { target: { value: "Test" } });
     await screen.findByRole("option", { name: "Test Customer" });
     fireEvent.keyDown(screen.getByLabelText("Search customers"), { key: "Enter" });
     expect(screen.queryByLabelText("Quotation warehouse")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Search items 1"), { target: { value: "I1" } });
+    fireEvent.change(await screen.findByLabelText("Search items 1"), { target: { value: "I1" } });
     await screen.findByRole("option", { name: /Item · I1/ });
     fireEvent.keyDown(screen.getByLabelText("Search items 1"), { key: "Enter" });
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => expect(mock.api.saveQuotation).toHaveBeenCalled());
     const input = mock.api.saveQuotation.mock.calls[0]![0]; expect(input.customerId).toBe("c1"); expect(input.godownId).toBe(""); expect(input.lines[0]).toMatchObject({ itemId: "i1", hsn: "1234", gstRate: 18, rate: 100 });
   });
+});
+
+it("restores an incomplete database draft without substituting Settings defaults", async () => {
+  mock.api.getQuotationDraft.mockResolvedValue({version: 4, input: {customerId:"", godownId:"", date:mock.quote.date,validUntil:mock.quote.validUntil,notes:"Recovered notes",terms:"",lines:[]}});
+  setup(); fireEvent.click(await screen.findByRole("button",{name:"New quotation"}));
+  expect(await screen.findByLabelText("Notes")).toHaveValue("Recovered notes");
+  expect(screen.getByLabelText("Terms and conditions")).toHaveValue("");
+  expect(screen.getByText("Recovered your unfinished quotation.")).toBeTruthy();
+  expect(mock.api.saveQuotation).not.toHaveBeenCalled();
+});
+it("saves before opening print and prints the persisted quotation", async () => {
+  mock.quote.status="draft";
+  mock.api.saveQuotation.mockImplementation(async input=>({...mock.quote, ...input, notes:"Persisted text"}));
+  setup(); fireEvent.click(await screen.findByRole("button",{name:"QT/26-27/00001"}));
+  fireEvent.change(await screen.findByLabelText("Notes"),{target:{value:"Persisted text"}});
+  fireEvent.click(screen.getByRole("button",{name:"Save & print quotation"}));
+  await waitFor(()=>expect(mock.print).toHaveBeenCalledOnce());
+  expect(mock.api.saveQuotation).toHaveBeenCalledWith(expect.objectContaining({id:"q1",notes:"Persisted text"}),0);
+  expect(document.getElementById("quotation-print")?.textContent).toContain("Persisted text");
+});
+
+describe("quotation autosave",()=>{
+  const input = {customerId:"",godownId:"",date:"",validUntil:"",notes:"",terms:"",lines:[]};
+  it("debounces incomplete input, serializes slow writes and keeps newer edits",async()=>{
+    vi.useFakeTimers();
+    let finish!: (value:any)=>void;
+    mock.api.saveQuotationDraft.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+    const {result,rerender}=renderHook(({value})=>useQuotationAutosave("new",value,{version:0,input:null},true),{initialProps:{value:input}});
+    rerender({value:{...input,notes:"first"}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1000);});
+    expect(mock.api.saveQuotationDraft).not.toHaveBeenCalled();
+    rerender({value:{...input,notes:"second"}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500);});
+    expect(mock.api.saveQuotationDraft).toHaveBeenCalledTimes(1);
+    rerender({value:{...input,notes:"latest"}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
+    expect(mock.api.saveQuotationDraft).toHaveBeenCalledTimes(1);
+    await act(async()=>{finish({version:1,input:{...input,notes:"second"}});});
+    expect(result.current.pending).toBe(true);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500);});
+    expect(mock.api.saveQuotationDraft).toHaveBeenLastCalledWith("new",1,{...input,notes:"latest"});
+    expect(result.current.pending).toBe(false);
+  });
+  it("retains failed input, exposes retry, and never claims a failed write was saved",async()=>{
+    vi.useFakeTimers();
+    mock.api.saveQuotationDraft.mockRejectedValueOnce(new Error("Database unavailable"));
+    const {result,rerender}=renderHook(({value})=>useQuotationAutosave("new",value,{version:0,input:null},true),{initialProps:{value:input}});
+    rerender({value:{...input,notes:"keep me"}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500);});
+    expect(result.current.error?.message).toBe("Database unavailable"); expect(result.current.pending).toBe(true);expect(result.current.hasSaved).toBe(false);
+    await act(async()=>{result.current.retry();});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500);});
+    expect(result.current.error).toBeNull();expect(result.current.pending).toBe(false);
+  });
+});
+
+it("does not print or discard edits when explicit Save fails", async () => {
+  mock.quote.status="draft";
+  mock.api.saveQuotation.mockRejectedValueOnce(new Error("Database unavailable"));
+  setup(); fireEvent.click(await screen.findByRole("button",{name:"QT/26-27/00001"}));
+  fireEvent.change(await screen.findByLabelText("Notes"),{target:{value:"Keep these edits"}});
+  fireEvent.click(screen.getByRole("button",{name:"Save & print quotation"}));
+  await waitFor(()=>expect(mock.api.saveQuotation).toHaveBeenCalled());
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Save & print quotation"})).not.toBeDisabled());
+  expect(mock.print).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Notes")).toHaveValue("Keep these edits");
 });

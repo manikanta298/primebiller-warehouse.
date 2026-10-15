@@ -16,7 +16,7 @@ export function quotationProblems(d: OrderDraft & { validUntil: string; terms: s
 }
 export function quotationActionProblem(q: { status: string; validUntil: string }, action: "issue" | "accept" | "convert", today: string): string | undefined {
   const required = { issue: "draft", accept: "issued", convert: "accepted" }[action];
-  if (q.status !== required) return `Only ${required} quotations can ${action === "convert" ? "be converted" : `be ${action === "issue" ? "issued" : "accepted"}`}`;
+  if (action === "convert" ? !["draft", "issued", "accepted"].includes(q.status) : q.status !== required) return action === "convert" ? "Only active quotations can be converted" : `Only ${required} quotations can be ${action === "issue" ? "issued" : "accepted"}`;
   if (q.validUntil < today) return "This quotation has expired; create a new quotation with current prices";
   return undefined;
 }

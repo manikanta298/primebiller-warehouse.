@@ -2,7 +2,7 @@
  * In-memory mock backend. Mirrors the REST API signatures in client.ts so the
  * UI can be built before the Express + MySQL service exists.
  */
-import type { Quotation, QuotationInput, Adjustment, AdjustmentInput, AppUser, AppUserInput, NumberSeries, NumberSeriesInput, DocType, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Role,
+import type { Quotation, QuotationInput, QuotationDraft, Adjustment, AdjustmentInput, AppUser, AppUserInput, NumberSeries, NumberSeriesInput, DocType, OrgSettings, OrgSettingsInput, PrintProfile, DocHit, SearchFilter, Gstr1, SalesRegisterRow, ReceivableRow, ItemSalesRow, Role,
   Dashboard,
   Godown,
   WarehouseActivity,
@@ -676,10 +676,26 @@ export async function listQuotations(): Promise<Quotation[]> {
 export async function getQuotation(id: string): Promise<Quotation> {
   await listQuotations(); return clone(quoteForOrg(id));
 }
-export async function saveQuotation(input: QuotationInput): Promise<Quotation> {
+const quoteDraftKey = (key: string) => `quotation-draft:${getSession()?.orgId}:${getSession()?.user.id}:${key}`;
+export async function getQuotationDraft(key: string): Promise<QuotationDraft> {
+  if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot edit quotations");
+  if (key !== "new") quoteForOrg(key);
+  return JSON.parse(localStorage.getItem(quoteDraftKey(key)) ?? '{"version":0,"input":null}');
+}
+export async function saveQuotationDraft(key: string, version: number, input: QuotationInput): Promise<QuotationDraft> {
+  const previous = await getQuotationDraft(key);
+  if (key !== "new" && quoteForOrg(key).status !== "draft") throw new ApiError(409, "invalid_status", "Only draft quotations can be edited");
+  if (previous.version !== version) throw new ApiError(409, "draft_conflict", "This draft changed in another tab. Reopen it before editing.");
+  const next = { version: version + 1, input };
+  localStorage.setItem(quoteDraftKey(key), JSON.stringify(next));
+  return next;
+}
+export async function saveQuotation(input: QuotationInput, draftVersion?: number): Promise<Quotation> {
   await delay();
   if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot create quotations");
   const s = db(), orgId = getSession()?.orgId ?? "";
+  const draftKey = input.id ?? "new";
+  if (draftVersion !== undefined && (await getQuotationDraft(draftKey)).version !== draftVersion) throw new ApiError(409, "draft_conflict", "This draft changed in another tab. Reopen it before saving.");
   const problems = quotationProblems(input, quoteToday());
   if (problems.length) throw new ApiError(422, "validation", problems[0]!);
   const previous = input.id ? quoteForOrg(input.id) : undefined;
@@ -706,6 +722,7 @@ export async function saveQuotation(input: QuotationInput): Promise<Quotation> {
   };
   if (previous) Object.assign(previous, q);
   else { s.quotationCounters[counterKey] = seq; s.quotations.push(q); s.quotationOrgIds[q.id] = orgId; }
+  if (draftVersion !== undefined) localStorage.setItem(quoteDraftKey(draftKey), JSON.stringify({ version: draftVersion + 1, input: null }));
   return clone(q);
 }
 export async function quotationAction(id: string, action: "issue" | "accept" | "cancel"): Promise<Quotation> {
@@ -751,6 +768,7 @@ export async function convertQuotation(id: string, warehouseId?: string): Promis
   };
   for (const { a, receipt } of payments) { a!.salesOrderId = o.id; receipt!.salesOrderId = o.id; }
   s.salesOrders.push(o); s.salesOrderOrgIds[o.id] = orgId;
+  q.acceptedAt ??= nowIso(); q.acceptedBy ??= userName();
   q.status = "converted"; q.salesOrderId = o.id;
   return clone(o);
 }
