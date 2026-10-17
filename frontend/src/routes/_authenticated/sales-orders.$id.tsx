@@ -221,8 +221,8 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
         <div className="space-y-6">
           <section className="grid gap-4 rounded-lg border bg-card p-5 md:grid-cols-4">
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs text-muted-foreground">Customer</label>
-              <NativeSelect aria-label="Customer"
+              <label htmlFor="sales-customer" className="text-xs text-muted-foreground">Customer</label>
+              <NativeSelect id="sales-customer" aria-label="Customer"
                 disabled={!editable}
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
@@ -236,12 +236,12 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
               {customer && <div className="num text-xs text-muted-foreground">{customer.gstin ?? "Unregistered"} · {customer.stateName} ({customer.stateCode})</div>}
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Order date</label>
-              <Input type="date" disabled={!editable} value={date} onChange={(e) => setDate(e.target.value)} className="num" />
+              <label htmlFor="sales-date" className="text-xs text-muted-foreground">Order date</label>
+              <Input id="sales-date" type="date" disabled={!editable} value={date} onChange={(e) => setDate(e.target.value)} className="num" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Dispatch from</label>
-              <select disabled={!editable} value={godownId} onChange={(e) => setGodownId(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+              <label htmlFor="sales-godown" className="text-xs text-muted-foreground">Dispatch from</label>
+              <select id="sales-godown" disabled={!editable} value={godownId} onChange={(e) => setGodownId(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
                 <option value="">Select godown…</option>
                 {godowns.filter((g) => g.active || g.id === godownId).map((g) => <option key={g.id} value={g.id} disabled={!g.active}>{g.name}{g.active ? "" : " (inactive)"}</option>)}
               </select>
@@ -285,9 +285,9 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
                       />
                     </td>
                     <td className="num text-xs text-muted-foreground">{l.hsn}</td>
-                    <td><NumCell value={l.qty} disabled={!editable} onChange={(v) => setLine(l.key, { qty: v })} suffix={l.uom} /></td>
-                    <td><NumCell value={l.rate} disabled={!editable} onChange={(v) => setLine(l.key, { rate: v })} /></td>
-                    <td><NumCell value={l.discountPct} disabled={!editable} onChange={(v) => setLine(l.key, { discountPct: v })} /></td>
+                    <td><NumCell label={`Quantity line ${i + 1}`} value={l.qty} disabled={!editable} onChange={(v) => setLine(l.key, { qty: v })} suffix={l.uom} /></td>
+                    <td><NumCell label={`Rate line ${i + 1}`} value={l.rate} disabled={!editable} onChange={(v) => setLine(l.key, { rate: v })} /></td>
+                    <td><NumCell label={`Discount percent line ${i + 1}`} value={l.discountPct} disabled={!editable} onChange={(v) => setLine(l.key, { discountPct: v })} /></td>
                     <td className="num text-right text-xs">{l.itemId ? `${l.gstRate}%` : ""}</td>
                     <td className="num px-3 text-right">{l.itemId ? formatINR(lineTaxable(l)) : ""}</td>
                     {order && order.status !== "draft" && <td className="num px-3 text-right text-xs">{formatQty(l.deliveredQty)} / {formatQty(l.qty)}</td>}
@@ -313,8 +313,8 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
           </section>
 
           <section className="rounded-lg border bg-card p-5">
-            <label className="text-xs text-muted-foreground">Notes for delivery / invoice</label>
-            <Textarea disabled={!editable} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1.5" placeholder="Site address, unloading instructions…" />
+            <label htmlFor="sales-notes" className="text-xs text-muted-foreground">Notes for delivery / invoice</label>
+            <Textarea id="sales-notes" disabled={!editable} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1.5" placeholder="Site address, unloading instructions…" />
           </section>
         </div>
 
@@ -414,11 +414,12 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
   );
 }
 
-function NumCell({ value, onChange, disabled, suffix }: { value: number; onChange: (v: number) => void; disabled?: boolean; suffix?: string }) {
+function NumCell({ label, value, onChange, disabled, suffix }: { label: string; value: number; onChange: (v: number) => void; disabled?: boolean; suffix?: string }) {
   return (
     <div className="flex items-center justify-end gap-1">
       <input
         type="number"
+        aria-label={label}
         step="any"
         disabled={disabled}
         value={Number.isFinite(value) ? value : 0}

@@ -4,7 +4,8 @@ import { matchesSearch, searchRank, searchReady } from "@/lib/search-match";
 import { SearchSuggestions } from "./SearchSuggestions";
 import { SearchHighlight } from "./SearchHighlight";
 
-export function SearchableSelect({ label, searchLabel, placeholder, value, options, onChange, disabled = false, required = false }: {
+export function SearchableSelect({ inputId, describedBy, invalid, label, searchLabel, placeholder, value, options, onChange, disabled = false, required = false }: {
+  inputId?: string | undefined; describedBy?: string | undefined; invalid?: React.AriaAttributes["aria-invalid"];
   label: string; searchLabel: string; placeholder: string; value: string; disabled?: boolean; required?: boolean;
   options: { value: string; label: string; search?: string; disabled?: boolean }[];
   onChange: (value: string) => void;
@@ -23,7 +24,7 @@ export function SearchableSelect({ label, searchLabel, placeholder, value, optio
   const highlighted = Math.min(active, Math.max(0, choices.length - 1));
   const pick = (next: string) => { setSearch(options.find(o => o.value === next)?.label ?? ""); onChange(next); setOpen(false); };
   return <div className="relative mt-1 space-y-1" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget) && !document.getElementById(id)?.contains(e.relatedTarget as Node)) setOpen(false); }}>
-    <Input required={required} ref={anchor} role="combobox" aria-label={searchLabel} aria-autocomplete="list" aria-expanded={expanded} aria-controls={id} aria-activedescendant={expanded && choices[highlighted] ? `${id}-${highlighted}` : undefined} placeholder={searchLabel} value={search} disabled={disabled} onFocus={e => { e.target.select(); setOpen(true); }} onChange={e => { setSearch(e.target.value); setActive(0); setOpen(true); }} onKeyDown={e => {
+    <Input id={inputId} aria-describedby={describedBy} aria-invalid={invalid} required={required} ref={anchor} role="combobox" aria-label={searchLabel} aria-autocomplete="list" aria-expanded={expanded} aria-controls={id} aria-activedescendant={expanded && choices[highlighted] ? `${id}-${highlighted}` : undefined} placeholder={searchLabel} value={search} disabled={disabled} onFocus={e => { e.target.select(); setOpen(true); }} onChange={e => { setSearch(e.target.value); setActive(0); setOpen(true); }} onKeyDown={e => {
       if (e.key === "Escape") { setOpen(false); return; }
       if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); }
       if (!expanded || !choices.length) return;

@@ -29,6 +29,15 @@ function expectEditableLine() {
   expect(sent.lines[0]).not.toHaveProperty("key");
 }
 describe("saved Sales Order request lines", () => {
+  it("names order fields and each editable numeric column", () => {
+    setup();
+    expect(screen.getByLabelText("Order date")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("Dispatch from")).toHaveRole("combobox");
+    expect(screen.getByLabelText("Customer")).toHaveRole("combobox");
+    expect(screen.getByLabelText("Notes for delivery / invoice")).toHaveRole("textbox");
+    for (const label of ["Quantity line 1", "Rate line 1", "Discount percent line 1"])
+      expect(screen.getByRole("spinbutton", { name: label })).toBeEnabled();
+  });
   it("saves a loaded draft using only editable line fields", async () => {
     setup(); fireEvent.click(screen.getByRole("button", { name: /Save draft/ }));
     await waitFor(() => expect(mock.api.saveSalesOrder).toHaveBeenCalledOnce());
