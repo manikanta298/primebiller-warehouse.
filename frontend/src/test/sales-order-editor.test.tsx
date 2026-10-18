@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SalesOrderEditor } from "@/routes/_authenticated/sales-orders.$id";
-const mock = vi.hoisted(() => ({ api: { listParties: vi.fn(), listGodowns: vi.fn(), saveSalesOrder: vi.fn(), confirmSalesOrder: vi.fn() }, navigate: vi.fn() }));
+const mock = vi.hoisted(() => ({ api: { listItems: vi.fn().mockResolvedValue([]), listTransfers: vi.fn().mockResolvedValue([]), listParties: vi.fn(), listGodowns: vi.fn(), saveSalesOrder: vi.fn(), confirmSalesOrder: vi.fn() }, navigate: vi.fn() }));
 vi.mock("@/api/client", () => ({ api: mock.api, ApiError: class extends Error {} }));
 vi.mock("@/lib/session", () => ({ useSession: () => ({ orgId: "org1", godownId: "all", user: { id: "u1", role: "Owner" }, orgs: [{ id: "org1", name: "Business", stateCode: "36" }] }) }));
 vi.mock("@tanstack/react-router", () => ({ createFileRoute: () => (options: unknown) => options, useNavigate: () => mock.navigate, Link: ({ children }: any) => <a>{children}</a> }));

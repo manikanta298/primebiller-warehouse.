@@ -25,7 +25,7 @@ const STATUSES = [
 ] as const;
 
 export const Route = createFileRoute("/_authenticated/sales-orders/")({
-  validateSearch: z.object({ status: z.string().optional() }),
+  validateSearch: z.object({ status: z.string().optional(), godownId: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "Sales orders — Girder" },
@@ -38,9 +38,11 @@ export const Route = createFileRoute("/_authenticated/sales-orders/")({
 });
 
 function SalesOrdersPage() {
-  const { status = "all" } = Route.useSearch();
+  const { status = "all", godownId: selectedGodown } = Route.useSearch();
   const navigate = useNavigate();
   const session = useSession();
+  const godownId = selectedGodown ?? session?.godownId ?? "all";
+  const { data: godowns = [] } = useQuery({ queryKey: ["godowns", session?.orgId], queryFn: () => api.listGodowns(session!.orgId!), enabled: !!session?.orgId });
   const stateCode = session?.orgs.find((o) => o.id === session.orgId)?.stateCode;
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -48,10 +50,10 @@ function SalesOrdersPage() {
     queryKey: ["sales-orders", session?.orgId, status],
     queryFn: () => api.listSalesOrders(status), enabled: !!session?.orgId,
   });
-  const filtered = useMemo(() => filterSalesOrders(data ?? [], status, search), [data, status, search]);
+  const filtered = useMemo(() => filterSalesOrders((data ?? []).filter((o) => godownId === "all" || o.godownId === godownId), status, search), [data, status, search, godownId]);
   const pagination = orderPage(filtered, page);
   useEffect(() => { setSearch(""); setPage(1); }, [session?.orgId]);
-  useEffect(() => { setPage(1); }, [status]);
+  useEffect(() => { setPage(1); }, [status, godownId]);
 
   return (
     <div>
@@ -71,7 +73,7 @@ function SalesOrdersPage() {
           <Link
             key={v}
             to="/sales-orders"
-            search={v === "all" ? {} : { status: v }}
+            search={{ status: v, godownId }}
             className={cn(
               "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
               status === v ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:border-primary",
@@ -86,6 +88,7 @@ function SalesOrdersPage() {
           <Search aria-hidden="true" className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label="Search sales orders" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search order number, customer, date" className="pl-8" />
         </div>
+        <select aria-label="Sales order warehouse" className="h-9 rounded-md border bg-background px-2 text-sm" value={godownId} onChange={(e) => navigate({ to: "/sales-orders", search: { status, godownId: e.target.value } })}><option value="all">All warehouses</option>{godowns.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
         {data && <span className="text-xs text-muted-foreground">{filtered.length} of {data.length} orders</span>}
       </div>
       {isLoading && <LoadingRows />}

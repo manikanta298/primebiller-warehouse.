@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { indiaItemDate } from "@/lib/item-detail-rules";
+import { OrderAvailability } from "@/components/app/OrderAvailability";
 import { orderDraftProblems } from "@/lib/sales-order-rules";
 
 export const Route = createFileRoute("/_authenticated/sales-orders/$id")({
@@ -311,6 +312,8 @@ export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {
               </div>
             )}
           </section>
+
+          {editable && <OrderAvailability lines={filled} godowns={godowns} godownId={godownId} orderId={order?.id} unsaved={unsaved} />}
 
           <section className="rounded-lg border bg-card p-5">
             <label htmlFor="sales-notes" className="text-xs text-muted-foreground">Notes for delivery / invoice</label>

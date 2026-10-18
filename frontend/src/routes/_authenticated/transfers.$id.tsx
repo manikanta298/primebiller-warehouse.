@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/transfers/$id")({
+  validateSearch: z.object({ orderId: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "Stock transfer — Girder" },
@@ -26,6 +28,7 @@ export const Route = createFileRoute("/_authenticated/transfers/$id")({
 
 function TransferDetail() {
   const { id } = Route.useParams();
+  const { orderId } = Route.useSearch();
   const session = useSession();
   const role = session?.user.role;
   const qc = useQueryClient();
@@ -56,6 +59,7 @@ function TransferDetail() {
 
   return (
     <div>
+      {orderId && <Link to="/sales-orders/$id" params={{ id: orderId }} className="mb-4 inline-block text-sm underline">Return to sales order</Link>}
       <PageHeader title={t.number} eyebrow="Stock transfer" actions={open && can(role, "cancelTransfer") && (
         <Button variant="outline" disabled={cancel.isPending} onClick={() => { const r = window.prompt("Reason for cancelling?"); if (r?.trim()) cancel.mutate(r.trim()); }}>Cancel transfer</Button>
       )}>

@@ -6,6 +6,7 @@ import { canAccess, useSession } from "@/lib/session";
 import { formatCompactINR, formatDate, formatINR, formatQty } from "@/lib/format";
 import { PageHeader, ErrorState, LoadingRows } from "@/components/app/states";
 import { Button } from "@/components/ui/button";
+import { pipelineStatus } from "@/lib/fulfillment-plan";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -86,7 +87,7 @@ function DashboardPage() {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {data.pipeline.map((p, i) => (
                   canCreateOrder ? (
-                    <Link key={p.stage} to="/sales-orders" className={cn("rounded-md border p-3 transition-colors hover:border-primary", i === 1 && "bg-primary/5")}>
+                    <Link key={p.stage} to="/sales-orders" search={{ status: pipelineStatus(p.stage), godownId }} className={cn("rounded-md border p-3 transition-colors hover:border-primary", i === 1 && "bg-primary/5")}>
                       <div className="eyebrow">{p.stage}</div>
                       <div className="num mt-1 text-2xl font-semibold">{p.count}</div>
                       <div className="num text-xs text-muted-foreground">{formatCompactINR(p.value)}</div>
