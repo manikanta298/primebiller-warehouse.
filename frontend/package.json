@@ -34,12 +34,13 @@
     "test:reports": "node --experimental-strip-types --test tests/report-rules.test.mjs",
     "build:vercel": "node scripts/build-vercel.mjs",
     "typecheck:frontend": "tsc --noEmit -p tsconfig.json",
-    "ci:frontend": "npm run test:conversion && npm run test:first-admin && npm run test:responsive && npm run test:quotations && npm run test:record-delete && npm run test:ca && npm run test:password-otp && npm run build:vercel",
+    "ci:frontend": "npm run test:conversion && npm run test:first-admin && npm run test:responsive && npm run test:quotations && npm run test:record-delete && npm run test:ca && npm run test:password-otp && npm run test:warehouse-fulfillment && npm run build:vercel",
     "test:responsive": "vitest run src/test/app-shell.test.tsx",
     "test:quotations": "vitest run src/test/quotations.test.tsx src/test/sales-order-editor.test.tsx src/test/invoice-print.test.tsx src/test/search-autocomplete.test.tsx src/test/find-items.test.tsx",
     "test:record-delete": "vitest run src/test/delete-record.test.tsx",
     "test:ca": "vitest run src/test/ca-workspace.test.tsx",
-    "test:password-otp": "vitest run src/test/password-otp.test.tsx"
+    "test:password-otp": "vitest run src/test/password-otp.test.tsx",
+    "test:warehouse-fulfillment": "vitest run src/test/dashboard-pipeline.test.tsx src/test/order-availability.test.tsx src/test/multi-warehouse-fulfillment.test.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"

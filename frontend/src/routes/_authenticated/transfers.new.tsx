@@ -1,5 +1,6 @@
+import { z } from "zod";
 import { warehouseUnitCost } from "@/lib/warehouse-stock";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Plus, Trash2, ArrowRight } from "lucide-react";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/transfers/new")({
+  validateSearch: z.object({ fromId: z.string().optional(), toId: z.string().optional(), itemId: z.string().optional(), qty: z.string().optional(), orderId: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "New stock transfer — Girder" },
@@ -31,17 +33,18 @@ type Row = { itemId: string; batchNo: string; qty: string };
 
 function NewTransfer() {
   const session = useSession();
+  const search = Route.useSearch();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const gq = useQuery({ queryKey: ["godowns", session?.orgId], queryFn: () => api.listGodowns(session?.orgId ?? "") });
   const dq = useQuery({ queryKey: ["transfer-destinations", session?.orgId], queryFn: () => api.listTransferDestinations(session?.orgId ?? "") });
   const iq = useQuery({ queryKey: ["items", session?.orgId], queryFn: () => api.listItems() });
-  const [fromId, setFromId] = useState(session?.godownId && session.godownId !== "all" ? session.godownId : "");
-  const [toId, setToId] = useState("");
+  const [fromId, setFromId] = useState(search.fromId ?? (session?.godownId && session.godownId !== "all" ? session.godownId : ""));
+  const [toId, setToId] = useState(search.toId ?? "");
   const [date, setDate] = useState(businessToday);
   const [vehicle, setVehicle] = useState("");
-  const [reason, setReason] = useState("");
-  const [rows, setRows] = useState<Row[]>([{ itemId: "", batchNo: "", qty: "" }]);
+  const [reason, setReason] = useState(search.orderId ? `Fulfillment for sales order ${search.orderId}` : "");
+  const [rows, setRows] = useState<Row[]>([{ itemId: search.itemId ?? "", batchNo: "", qty: search.qty ?? "" }]);
   const godowns = (gq.data ?? []).filter((g) => g.active !== false);
   const destinations = dq.data ?? [];
   useEffect(() => {
@@ -68,7 +71,7 @@ function NewTransfer() {
 
   const go = useMutation({
     mutationFn: () => api.dispatchTransfer({ date, fromId, toId, vehicleNo: vehicle, reason, lines: active.map((r) => ({ itemId: r.itemId, batchNo: r.batchNo || undefined, qty: Number(r.qty) })) }),
-    onSuccess: (t) => { qc.invalidateQueries(); toast.success(`${t.number} dispatched · stock moved to in transit`); navigate({ to: "/transfers/$id", params: { id: t.id } }); },
+    onSuccess: (t) => { qc.invalidateQueries(); toast.success(`${t.number} dispatched · stock moved to in transit`); navigate({ to: "/transfers/$id", params: { id: t.id }, search: { orderId: search.orderId } }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -76,6 +79,7 @@ function NewTransfer() {
   return (
     <div className="max-w-4xl">
       <PageHeader title="New stock transfer" eyebrow="Inventory" />
+      {search.orderId && <Link to="/sales-orders/$id" params={{ id: search.orderId }} className="mb-4 inline-block text-sm underline">Return to sales order</Link>}
       <div className="grid items-end gap-4 rounded-lg border bg-card p-4 sm:grid-cols-[1fr_auto_1fr_1fr]">
         <Field label="From godown">
           <NativeSelect aria-label="From godown" value={fromId} onChange={(e) => { setFromId(e.target.value); setRows((r) => r.map((x) => ({ ...x, batchNo: "" }))); }}>
