@@ -38,3 +38,6 @@ dist-ssr
 !.env.npm.example
 
 .invoice-pdf-check/
+
+# Generated deployment build output
+.vercel/

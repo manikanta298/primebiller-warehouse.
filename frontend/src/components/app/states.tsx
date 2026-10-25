@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/api/client";
 
-export function PageHeader({ title, eyebrow, actions, children }: { title: string; eyebrow?: string; actions?: ReactNode; children?: ReactNode }) {
+export function PageHeader({ title, eyebrow, actions, children }: { title: string; eyebrow?: string | undefined; actions?: ReactNode; children?: ReactNode }) {
   return (
     <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">
@@ -17,7 +17,7 @@ export function PageHeader({ title, eyebrow, actions, children }: { title: strin
   );
 }
 
-export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
+export function EmptyState({ title, hint, action }: { title: string; hint?: string | undefined; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card px-6 py-14 text-center">
       <Inbox className="mb-3 size-8 text-muted-foreground" />

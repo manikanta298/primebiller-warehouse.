@@ -4,7 +4,7 @@ export type ReceiptMode = 'cash' | 'upi' | 'neft' | 'cheque';
 export interface ReceiptOpenInvoice { id: string; date: string; balance: number; number?: string }
 export interface ReceiptDraft {
   customerId: string; date: string; amount: number; mode: string; reference: string;
-  allocations?: { invoiceId: string; amount: number }[] | null;
+  allocations?: { invoiceId: string; amount: number }[] | null | undefined;
 }
 
 /** Convert exact, two-decimal currency to integer paise (or reject it). */

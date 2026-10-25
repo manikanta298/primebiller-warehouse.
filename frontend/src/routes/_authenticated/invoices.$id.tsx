@@ -1,3 +1,5 @@
+import { InvoiceSources } from "@/components/app/InvoiceSources";
+import { DocumentDistribution } from "@/components/app/DocumentDistribution";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,6 +75,8 @@ function InvoiceDetail() {
       {preview && profile && settings.data && <section className="invoice-preview" aria-label="Invoice preview"><InvoiceSheet invoice={i} settings={settings.data} profile={profile} /></section>}
       {[profiles.error, settings.error].filter(Boolean).map((error, index) => <ErrorState key={index} error={error} onRetry={() => { profiles.refetch(); settings.refetch(); }} />)}
       {i.status === "cancelled" && <div className="mb-4 border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive">CANCELLED · {i.cancelled?.reason ?? "Invoice voided"} · This document is not valid for payment or tax filing.</div>}
+      <InvoiceSources id={id} />
+      <DocumentDistribution type="invoice" id={id} />
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
           <div className="grid gap-4 rounded-lg border bg-card p-4 text-sm sm:grid-cols-3">

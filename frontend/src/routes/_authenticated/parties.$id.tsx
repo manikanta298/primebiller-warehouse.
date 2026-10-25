@@ -1,3 +1,4 @@
+import { CustomerDashboard } from "@/components/app/CustomerDashboard";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -97,6 +98,7 @@ function PartyPage() {
       <PageHeader title={isNew ? "New party" : data?.name ?? ""} eyebrow="Masters · Party">
         {data && <div className="mt-1 text-sm text-muted-foreground">{data.stateName}{data.gstin && <> · <span className="num">{data.gstin}</span></>}</div>}
       </PageHeader>
+      {!isNew && isCustomer && can(session?.user.role, "customerHistory") && <CustomerDashboard id={id} />}
       {cc && isCustomer && (
         <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           <Stat label="Outstanding" value={formatINR(cc.outstanding, 0)} />

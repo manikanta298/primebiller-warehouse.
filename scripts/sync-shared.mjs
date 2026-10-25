@@ -13,6 +13,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "backend/src/shared");
 mkdirSync(out, { recursive: true });
 const files = {
+  "distribution-rules.ts": "frontend/src/lib/distribution-rules.ts",
   "warehouse-stock.ts": "frontend/src/lib/warehouse-stock.ts",
   "ca-reports.ts": "frontend/src/lib/ca-reports.ts",
   "quotation-rules.ts": "frontend/src/lib/quotation-rules.ts",

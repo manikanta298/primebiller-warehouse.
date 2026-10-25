@@ -20,15 +20,15 @@ export function isoCalendarDate(value: string): boolean {
 
 export function normaliseMaster<K extends MasterKind>(kind: K, row: Omit<MasterRows[K], "id"> & { id?: string }): Omit<MasterRows[K], "id"> & { id?: string } {
   const d: AnyRow = { ...row };
-  if ("name" in d) d.name = String(d.name ?? "").trim();
-  if ("code" in d) d.code = String(d.code ?? "").trim().toUpperCase();
+  if ("name" in d) d["name"] = String(d["name"] ?? "").trim();
+  if ("code" in d) d["code"] = String(d["code"] ?? "").trim().toUpperCase();
   if (kind === "categories") {
-    d.parentId = d.parentId ? String(d.parentId) : null;
-    d.defaultHsn = String(d.defaultHsn ?? "").trim();
+    d["parentId"] = d["parentId"] ? String(d["parentId"]) : null;
+    d["defaultHsn"] = String(d["defaultHsn"] ?? "").trim();
   }
   if (kind === "hsn") {
-    d.description = String(d.description ?? "").trim();
-    d.effectiveFrom = String(d.effectiveFrom ?? "").slice(0, 10);
+    d["description"] = String(d["description"] ?? "").trim();
+    d["effectiveFrom"] = String(d["effectiveFrom"] ?? "").slice(0, 10);
   }
   return d as Omit<MasterRows[K], "id"> & { id?: string };
 }
@@ -42,20 +42,20 @@ export function masterProblems(kind: MasterKind, raw: AnyRow, categories: readon
     const length = text(key).length;
     if (length < min || length > max) issues.push(`${label} must be ${min}–${max} characters.`);
   };
-  if (typeof d.active !== "boolean") issues.push("Active must be true or false.");
+  if (typeof d["active"] !== "boolean") issues.push("Active must be true or false.");
   if (kind === "uoms") {
     bounded("code", "Unit code", 1, 12);
     if (!/^[A-Z0-9_-]+$/.test(text("code"))) issues.push("Unit code may contain only letters, numbers, - and _.");
     bounded("name", "Unit name", 1, 60);
     if (!UNIT_KINDS.includes(text("category"))) issues.push("Choose a valid unit kind.");
-    if (!Number.isInteger(d.decimals) || (d.decimals as number) < 0 || (d.decimals as number) > 4) issues.push("Decimal places must be a whole number from 0 to 4.");
+    if (!Number.isInteger(d["decimals"]) || (d["decimals"] as number) < 0 || (d["decimals"] as number) > 4) issues.push("Decimal places must be a whole number from 0 to 4.");
   }
   if (kind === "categories") {
     bounded("name", "Category name", 1, 80);
     const code = text("defaultHsn");
     if (code && !HSN_CODE.test(code)) issues.push("Default HSN must be 4, 6 or 8 digits.");
-    if (!GST.includes(d.defaultGst as number)) issues.push("Choose a supported default GST rate.");
-    const parentId = d.parentId;
+    if (!GST.includes(d["defaultGst"] as number)) issues.push("Choose a supported default GST rate.");
+    const parentId = d["parentId"];
     if (parentId !== null && parentId !== "") {
       if (typeof parentId !== "string") issues.push("Invalid parent category.");
       else {
@@ -64,7 +64,7 @@ export function masterProblems(kind: MasterKind, raw: AnyRow, categories: readon
         const seen = new Set<string>();
         let next: string | null = parentId;
         while (next && !seen.has(next)) {
-          if (next === d.id) { issues.push("A category cannot contain itself as an ancestor."); break; }
+          if (next === d["id"]) { issues.push("A category cannot contain itself as an ancestor."); break; }
           seen.add(next);
           next = byId.get(next)?.parentId ?? null;
         }
@@ -76,8 +76,8 @@ export function masterProblems(kind: MasterKind, raw: AnyRow, categories: readon
   if (kind === "hsn") {
     if (!HSN_CODE.test(text("code"))) issues.push("HSN must contain 4, 6 or 8 digits.");
     bounded("description", "Description", 1, 200);
-    if (!GST.includes(d.gstRate as number)) issues.push("Choose a supported GST rate.");
-    if (typeof d.cessPct !== "number" || !Number.isFinite(d.cessPct) || d.cessPct < 0 || d.cessPct > 100 || Math.abs(Math.round(d.cessPct * 100) - d.cessPct * 100) > 1e-8) issues.push("Cess must be between 0 and 100, with at most two decimals.");
+    if (!GST.includes(d["gstRate"] as number)) issues.push("Choose a supported GST rate.");
+    if (typeof d["cessPct"] !== "number" || !Number.isFinite(d["cessPct"]) || d["cessPct"] < 0 || d["cessPct"] > 100 || Math.abs(Math.round(d["cessPct"] * 100) - d["cessPct"] * 100) > 1e-8) issues.push("Cess must be between 0 and 100, with at most two decimals.");
     if (!isoCalendarDate(text("effectiveFrom"))) issues.push("Enter a valid effective date.");
     if (previous && ["code", "gstRate", "cessPct", "effectiveFrom"].some((key) => String(d[key]) !== String(previous[key]))) {
       issues.push("Published HSN codes, dates and rates are immutable. Add a new dated rate instead.");

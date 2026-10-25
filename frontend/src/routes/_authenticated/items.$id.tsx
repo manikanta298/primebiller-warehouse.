@@ -332,7 +332,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>;
 }
 
-function Toggle({ label, hint, checked, disabled, onChange }: { label: string; hint?: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, hint, checked, disabled, onChange }: { label: string; hint?: string | undefined; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2.5">
       <div><div className="text-sm">{label}</div>{hint && <div className="text-xs text-muted-foreground">{hint}</div>}</div>

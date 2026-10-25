@@ -107,11 +107,11 @@ export interface Party {
   id: string;
   kind: PartyKind;
   name: string;
-  tradeName?: string;
-  pan?: string;
-  email?: string;
-  address?: string;
-  pin?: string;
+  tradeName?: string | undefined;
+  pan?: string | undefined;
+  email?: string | undefined;
+  address?: string | undefined;
+  pin?: string | undefined;
   creditDays?: number;
   blocked?: boolean;
   gstin?: string | undefined;
@@ -437,6 +437,7 @@ export interface Advance {
 }
 
 export interface Invoice {
+  sources?: { itemId: string; itemName: string; qty: number; uom: string; warehouseId: string; warehouseName: string; challanId: string; challanNumber: string; batchNo: string }[];
   /** Captured at issuance; older documents may not have a billing address. */
   billingAddress?: string;
   customerPhone?: string;

@@ -409,3 +409,30 @@ SET @warehouse_cost_ddl = IF(
 PREPARE warehouse_cost_statement FROM @warehouse_cost_ddl;
 EXECUTE warehouse_cost_statement;
 DEALLOCATE PREPARE warehouse_cost_statement;
+
+-- Immutable document snapshots and transactional WhatsApp outbox.
+CREATE TABLE IF NOT EXISTS customer_communication_preferences (
+ org_id VARCHAR(40) NOT NULL, customer_id VARCHAR(40) NOT NULL,
+ enabled BOOLEAN NOT NULL DEFAULT FALSE, phone VARCHAR(20) NOT NULL DEFAULT '',
+ evidence VARCHAR(500) NOT NULL DEFAULT '', recorded_by VARCHAR(40) NOT NULL,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY (org_id, customer_id)
+);
+CREATE TABLE IF NOT EXISTS document_distributions (
+ org_id VARCHAR(40) NOT NULL, document_type VARCHAR(16) NOT NULL, document_id VARCHAR(40) NOT NULL,
+ version INT NOT NULL, content_hash CHAR(64) NOT NULL, snapshot JSON NOT NULL,
+ customer_id VARCHAR(40) NOT NULL, author_id VARCHAR(40) NOT NULL, author_name VARCHAR(200) NOT NULL,
+ status VARCHAR(24) NOT NULL, decision_by VARCHAR(40), decision_reason VARCHAR(500),
+ provider_id VARCHAR(200), error_code VARCHAR(100), attempts INT NOT NULL DEFAULT 0,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY (org_id, document_type, document_id, version), UNIQUE KEY provider_message (provider_id),
+ KEY delivery_queue (status, created_at), KEY customer_messages (org_id, customer_id)
+);
+CREATE TABLE IF NOT EXISTS customer_communication_events (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ org_id VARCHAR(40) NOT NULL, customer_id VARCHAR(40) NOT NULL,
+ enabled BOOLEAN NOT NULL, phone VARCHAR(20) NOT NULL, evidence VARCHAR(500) NOT NULL,
+ recorded_by VARCHAR(40) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ KEY customer_consent_history (org_id, customer_id, id)
+);

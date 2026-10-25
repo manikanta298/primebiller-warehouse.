@@ -41,6 +41,10 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-Girder <no-reply@local.test>}
+      WHATSAPP_ORG_ID: ${WHATSAPP_ORG_ID:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
     depends_on:
       mysql: { condition: service_healthy }
     healthcheck:
@@ -50,6 +54,32 @@ services:
       retries: 10
       start_period: 30s
     command: ["sh", "-c", "npm run db:migrate && npm start"]
+    networks: [private]
+
+  notification-worker:
+    profiles: [notifications]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "start:notifications"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://girder:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}@mysql:3306/girder
+      DB_SSL: "false"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      WHATSAPP_ORG_ID: ${WHATSAPP_ORG_ID:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-}
+      WHATSAPP_QUOTATION_TEMPLATE: ${WHATSAPP_QUOTATION_TEMPLATE:-}
+      WHATSAPP_INVOICE_TEMPLATE: ${WHATSAPP_INVOICE_TEMPLATE:-}
+      WHATSAPP_LANGUAGE: ${WHATSAPP_LANGUAGE:-en}
+    depends_on:
+      backend: { condition: service_healthy }
     networks: [private]
 
   frontend:

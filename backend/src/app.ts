@@ -1,3 +1,5 @@
+import { crmRouter } from "./routes/crm.js";
+import { whatsappWebhookRouter } from "./routes/whatsapp-webhook.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -31,6 +33,7 @@ export function createApp() {
     origin: (origin, cb) => cb(null, !origin || config.corsOrigins.includes(origin)),
     allowedHeaders: ["Content-Type", "Authorization", "X-Org-Id", "Idempotency-Key"],
   }));
+  app.use("/api/v1/webhooks/whatsapp", whatsappWebhookRouter);
   // Bulk-import uploads arrive base64-encoded; allow them more room than other requests.
   app.use("/api/v1/import", express.json({ limit: "15mb" }));
   app.use(express.json({ limit: "2mb" }));
@@ -63,6 +66,7 @@ export function createApp() {
   v1.use("/ca", caRouter);
   v1.use(recordDeleteRouter);
   v1.use(coreRouter);
+  v1.use(crmRouter);
   v1.use(quotationRouter);
   v1.use(invoiceAuditRouter);
   v1.use(salesRouter);

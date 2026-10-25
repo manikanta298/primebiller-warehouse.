@@ -25,6 +25,7 @@ export function visibleDocument(ctx: Ctx, key: string, doc: any): boolean {
 }
 
 const READ_ROLES: [RegExp, Role[]][] = [
+  [/^\/distribution(?:\/|$)/, ["Owner", "Manager", "Sales", "Accountant"]],
   [/^\/ca(?:\/|$)/, ["Owner", "Manager", "Accountant", "Chartered Accountant"]],
   [/^\/users(?:\/|$)/, ["Owner"]],
   [/^\/settings\/numbering(?:\/|$)/, ["Owner"]],
