@@ -6,6 +6,7 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
 COPY db ./db
+COPY assets ./assets
 RUN npm run build
 ENV NODE_ENV=production PORT=4000
 USER node

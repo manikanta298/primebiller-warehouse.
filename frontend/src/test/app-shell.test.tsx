@@ -33,7 +33,7 @@ beforeEach(() => {
   router.pathname = "/dashboard"; router.navigate.mockClear(); desktop = false;
   vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
     get matches() { return desktop; }, media: query, onchange: null,
-    addEventListener: (_event, listener) => { change = listener as () => void; }, removeEventListener: () => {},
+    addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => { change = listener as () => void; }, removeEventListener: () => {},
     addListener: () => {}, removeListener: () => {}, dispatchEvent: () => true,
   }));
 });

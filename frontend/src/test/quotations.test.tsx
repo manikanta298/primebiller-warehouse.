@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@t
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useQuotationAutosave } from "@/lib/use-quotation-autosave";
 import { QuotationsPage } from "@/routes/_authenticated/quotations";
-const mock = vi.hoisted(() => ({ role: "Owner", quote: null as any, navigate: vi.fn(), print: vi.fn(), api: { getQuotationDraft: vi.fn(), saveQuotationDraft: vi.fn(), getQuotationDefaults: vi.fn(), saveParty: vi.fn(), createItem: vi.fn(), listQuotations: vi.fn(), getQuotation: vi.fn(), listParties: vi.fn(), listGodowns: vi.fn(), listItems: vi.fn(), saveQuotation: vi.fn(), quotationAction: vi.fn(), convertQuotation: vi.fn(), recordReceipt: vi.fn() } }));
+const mock = vi.hoisted(() => ({ role: "Owner", quote: null as any, navigate: vi.fn(), print: vi.fn(), api: { documentDistribution: vi.fn().mockResolvedValue([]), getQuotationDraft: vi.fn(), saveQuotationDraft: vi.fn(), getQuotationDefaults: vi.fn(), saveParty: vi.fn(), createItem: vi.fn(), listQuotations: vi.fn(), getQuotation: vi.fn(), listParties: vi.fn(), listGodowns: vi.fn(), listItems: vi.fn(), saveQuotation: vi.fn(), quotationAction: vi.fn(), convertQuotation: vi.fn(), recordReceipt: vi.fn() } }));
 vi.mock("@/api/client", () => ({ api: mock.api }));
 vi.mock("@/lib/session", () => ({ useSession: () => ({ orgId: "org1", godownId: "g1", user: { id: "u1", role: mock.role }, orgs: [{ id: "org1", name: "Test Business", gstin: "", stateCode: "36" }] }) }));
 vi.mock("@tanstack/react-router", () => ({ createFileRoute: () => (options: unknown) => options, useNavigate: () => mock.navigate, Link: ({ children }: any) => <a>{children}</a> }));
@@ -53,7 +53,7 @@ describe("quotations UI", () => {
     fireEvent.click(await screen.findByRole("button", { name: "QT/26-27/00001" }));
     expect(await screen.findByRole("button", { name: "Record advance" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Convert to Sales Order" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Save draft" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save quotation" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Print / Save PDF" })); expect(mock.print).toHaveBeenCalledOnce();
     expect(document.getElementById("quotation-print")?.textContent).toContain("This quotation is not a tax invoice");
   });
@@ -97,7 +97,7 @@ describe("quotations UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create and select item" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect((screen.getByLabelText("Search items 1") as HTMLInputElement).value).toContain("New Product");
-    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save quotation" }));
     await waitFor(() => expect(mock.api.saveQuotation).toHaveBeenCalled());
     expect(mock.api.saveQuotation.mock.calls[0]![0]).toMatchObject({ customerId: "new-c", terms: "Default quote terms", notes: "Default quote notes", lines: [{ itemId: "new-i", rate: 200, gstRate: 18 }] });
   });
@@ -120,7 +120,7 @@ describe("quotations UI", () => {
     fireEvent.change(await screen.findByLabelText("Search items 1"), { target: { value: "I1" } });
     await screen.findByRole("option", { name: /Item · I1/ });
     fireEvent.keyDown(screen.getByLabelText("Search items 1"), { key: "Enter" });
-    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save quotation" }));
     await waitFor(() => expect(mock.api.saveQuotation).toHaveBeenCalled());
     const input = mock.api.saveQuotation.mock.calls[0]![0]; expect(input.customerId).toBe("c1"); expect(input.godownId).toBe(""); expect(input.lines[0]).toMatchObject({ itemId: "i1", hsn: "1234", gstRate: 18, rate: 100 });
   });

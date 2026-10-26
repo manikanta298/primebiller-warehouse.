@@ -4,8 +4,8 @@ import { adjustmentProblems, needsApproval, adjustmentValue, canApproveAdjustmen
 const line = { itemName: "Cement", direction: "down" as const, qty: 5, onHand: 10, unitCost: 340, trackBatches: false };
 
 describe("adjustment rules", () => {
-  it("requires a reason", () => expect(adjustmentProblems("", [line])).toContain("Choose a reason"));
-  it("blocks reducing more than on hand", () => expect(adjustmentProblems("damage", [{ ...line, qty: 11 }])[0]).toMatch(/only 10 on hand/));
+  it("requires a reason", () => expect(adjustmentProblems("", [line])).toContain("Choose an adjustment reason"));
+  it("blocks reducing more than on hand", () => expect(adjustmentProblems("damage", [{ ...line, qty: 11 }])[0]).toMatch(/only 10 free/));
   it("found stock cannot reduce stock", () => expect(adjustmentProblems("found", [line]).length).toBe(1));
   it("increase needs a unit cost", () => expect(adjustmentProblems("found", [{ ...line, direction: "up", unitCost: 0 }])[0]).toMatch(/unit cost/));
   it("batch-tracked items need a batch", () => expect(adjustmentProblems("damage", [{ ...line, trackBatches: true }])[0]).toMatch(/batch/));

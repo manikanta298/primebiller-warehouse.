@@ -1,3 +1,4 @@
+import { queueDocument } from "../distribution.js";
 import { one, exec } from "../db.js";
 import { Router } from "express";
 import { z } from "zod";
@@ -77,6 +78,7 @@ const save = h(req => write(req, async u => {
     // Keep a tombstone/version so a stale tab cannot recreate an already-saved draft.
     await exec(u.conn, "UPDATE quotation_drafts SET version = version + 1, body = NULL WHERE org_id = ? AND user_id = ? AND draft_key = ?", [u.ctx.orgId, u.ctx.userId, input.id ?? "new"]);
   }
+  if (previous?.payments.length && previous.customerId !== input.customerId) throw new ApiError(409, "customer_locked", "Cannot change a customer after an advance");
   const cust = await u.party(input.customerId);
   if (!cust || !orderCustomerEligible(cust.kind, !!cust.blocked)) throw new ApiError(422, "validation", "Choose an active customer");
   const godown = input.godownId ? await u.godown(input.godownId) : undefined;
@@ -93,8 +95,9 @@ const save = h(req => write(req, async u => {
     customerId: cust.id, customerName: cust.name, placeOfSupplyCode: cust.stateCode, placeOfSupplyName: cust.stateName,
     godownId: godown?.id ?? "", status: "draft", lines, grandTotal: computeTotals(lines, supplyType(u.ctx.orgStateCode, cust.stateCode)).grandTotal,
     supply: supplyType(u.ctx.orgStateCode, cust.stateCode),
-    linked: [], payments: [], createdBy: previous?.createdBy ?? u.ctx.userName, createdAt: previous?.createdAt ?? nowIso(),
+    linked: previous?.linked ?? [], payments: previous?.payments ?? [], createdBy: previous?.createdBy ?? u.ctx.userName, createdAt: previous?.createdAt ?? nowIso(),
   };
+  await queueDocument(u, "quotation", q, previous);
   u.put("quotations", q);
   return q;
 }));

@@ -1,3 +1,4 @@
+import { queueDocument } from "../distribution.js";
 import { warehouseUnitCost } from "../shared/warehouse-stock.js";
 /** Sales orders, delivery challans + e-way bills, tax invoices, receipts and advances. */
 import { Router } from "express";
@@ -153,7 +154,7 @@ async function postChallan(u: Uow, c: Challan, sign: 1 | -1) {
       const b = a.batchNo ? it.batches.find((x) => x.batchNo === a.batchNo && x.godownId === c.godownId) : undefined;
       if (b) b.qty -= sign * a.qty;
       u.ledger({ at, docNo: c.number, docType: "challan", soId: c.soId, type: sign === 1 ? "DC_ISSUE" : "DC_REVERSE", itemId: it.id, itemName: it.name,
-        godownId: c.godownId, godownName: c.godownName, ...(a.batchNo ? { batchNo: a.batchNo } : {}), qty: -sign * a.qty, unitCost: warehouseUnitCost(it, c.godownId), user: u.ctx.userName });
+        godownId: c.godownId, godownName: c.godownName, ...(a.batchNo ? { batchNo: a.batchNo ?? "" } : {}), qty: -sign * a.qty, unitCost: warehouseUnitCost(it, c.godownId), user: u.ctx.userName });
     }
     const sl = o.lines.find((x) => x.id === l.soLineId);
     if (sl) sl.deliveredQty += sign * l.qty;
@@ -209,7 +210,7 @@ salesRouter.post("/challans", h((req) => write(req, async (u) => {
     const onHand = it.stock.find((x) => x.godownId === o.godownId)?.onHand ?? 0;
     if (!it.allowNegative && il.qty > onHand) throw new ApiError(409, "insufficient_stock", `${sl.itemName}: only ${onHand} on hand`);
     lines.push({ soLineId: sl.id, itemId: sl.itemId, itemName: sl.itemName, hsn: sl.hsn, uom: sl.uom, qty: il.qty, rate: sl.rate, discountPct: sl.discountPct, gstRate: sl.gstRate,
-      allocations: il.allocations.filter((a) => a.qty > 0).map((a) => (a.batchNo ? { batchNo: a.batchNo, qty: a.qty } : { qty: a.qty })) });
+      allocations: il.allocations.filter((a) => a.qty > 0).map((a) => (a.batchNo ? { batchNo: a.batchNo ?? "", qty: a.qty } : { qty: a.qty })) });
   }
   if (!lines.length) throw new ApiError(422, "validation", "Send at least one line");
   const t = computeTotals(lines, supplyType(u.ctx.orgStateCode, o.placeOfSupplyCode));
@@ -354,6 +355,7 @@ salesRouter.post("/invoices", h((req) => write(req, async (u) => {
     id: newId("inv"), number, date: input.date, dueDate: dueDateFor(input.date, cust.creditDays ?? 30), customerId: cust.id, customerName: cust.name, gstin: cust.gstin,
     billingAddress: [cust.address, cust.city, cust.pin].filter(Boolean).join(", "), customerPhone: cust.phone,
     placeOfSupplyCode: c0.placeOfSupplyCode, placeOfSupplyName: c0.placeOfSupplyName, supply,
+    sources: cs.flatMap(c => c.lines.flatMap(l => l.allocations.map(a => ({ itemId: l.itemId, itemName: l.itemName, qty: a.qty, uom: l.uom, warehouseId: c.godownId, warehouseName: c.godownName, challanId: c.id, challanNumber: c.number, batchNo: a.batchNo ?? "" })))),
     challans: cs.map((c) => ({ id: c.id, number: c.number, soId: c.soId, soNumber: c.soNumber })), lines,
     taxable: t.taxable, cgst: t.cgst, sgst: t.sgst, igst: t.igst, roundOff: t.roundOff, grandTotal: t.grandTotal, byRate: t.byRate,
     advances: [], paid: 0, balance: t.grandTotal, status: "awaiting_payment", createdBy: u.ctx.userName,
@@ -368,6 +370,7 @@ salesRouter.post("/invoices", h((req) => write(req, async (u) => {
     }
   }
   refreshInvoice(inv);
+  await queueDocument(u, "invoice", inv);
   u.put("invoices", inv);
   cust.outstanding += inv.balance;
   u.touchParty(cust);

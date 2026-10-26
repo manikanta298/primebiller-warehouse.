@@ -47,7 +47,7 @@ function SalesOrderPage() {
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["sales-order", session?.orgId, id], queryFn: () => api.getSalesOrder(id), enabled: !isNew && !!session?.orgId });
   if (!isNew && isLoading) return <LoadingRows rows={8} />;
   if (!isNew && error) return <ErrorState error={error} onRetry={() => refetch()} />;
-  return <SalesOrderEditor key={`${session?.orgId}:${id}`} order={isNew ? null : data!} />;
+  return <SalesOrderEditor key={`${session?.orgId}:${id}:${data?.status}:${data?.lines.map(l => l.deliveredQty).join(",")}`} order={isNew ? null : data!} />;
 }
 
 export function SalesOrderEditor({ order }: { order: SalesOrder | null }) {

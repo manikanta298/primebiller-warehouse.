@@ -144,7 +144,7 @@ const DOT: Record<AlertKind, string> = {
   over_aged: "bg-warning",
 };
 
-function AlertRow({ a, onAck, busy, role }: { a: StockAlert; onAck: () => void; busy: boolean; role?: string }) {
+function AlertRow({ a, onAck, busy, role }: { a: StockAlert; onAck: () => void; busy: boolean; role?: string | undefined }) {
   const isStock = a.kind === "out_of_stock" || a.kind === "below_reorder";
   let detail: string;
   if (isStock) detail = `Free ${formatQty(a.qty)} ${a.uom} · reorder at ${formatQty(a.reorderLevel ?? 0)} · short ${formatQty(a.shortfall ?? 0)}`;

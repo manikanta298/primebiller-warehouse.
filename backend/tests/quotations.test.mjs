@@ -9,12 +9,17 @@ const { today } = await import('../src/config.ts');
 
 test('quotation HTTP lifecycle: stock unchanged, accepted once, advances linked, retries safe, invoices isolated', async () => {
   const originalQuery = pool.query, originalConnection = pool.getConnection;
-  const docs = new Map(), counters = new Map(), drafts = new Map();
+  const docs = new Map(), counters = new Map(), drafts = new Map(), distributions = [];
   let role = 'Owner', assigned = ['g1'], stockWrites = [], ledgerWrites = 0;
   const item = { id: 'i1', org_id: 'org1', sku: 'I1', name: 'Item', category: '', brand: '', hsn: '1234', gst_rate: 18, base_uom: 'PCS', conversions: [], sale_price: 100, cost_price: 50, active: 1 };
   const party = { id: 'c1', org_id: 'org1', kind: 'customer', name: 'Customer', address: 'Saved billing street', city: 'Hyderabad', pin: '500001', phone: '9999999999', state_code: '36', state_name: 'Telangana', credit_limit: 10000, outstanding: 0, credit_days: 30 };
   const stock = { item_id: 'i1', godown_id: 'g1', on_hand: 10, held: 0, reorder_level: 0, max_level: 0 };
   async function query(sql, p = []) {
+    if (sql.startsWith('SELECT version, content_hash FROM document_distributions')) return [[...distributions].filter(r=>r.org_id===p[0] && r.document_type===p[1] && r.document_id===p[2]).sort((a,b)=>b.version-a.version).slice(0,1),[]];
+    if (sql.startsWith('SELECT name, gstin, state_code FROM orgs')) return [[{name:'Test Business',gstin:'',state_code:'36'}],[]];
+    if (sql.startsWith('UPDATE document_distributions')) { for (const r of distributions) if(r.org_id===p[0] && r.document_type===p[1] && r.document_id===p[2] && ['pending_approval','queued','blocked','failed','rejected'].includes(r.status)) r.status='superseded'; return [{},[]]; }
+    if (sql.startsWith('INSERT INTO document_distributions')) { distributions.push({org_id:p[0],document_type:p[1],document_id:p[2],version:p[3],content_hash:p[4],snapshot:JSON.parse(p[5]),customer_id:p[6],author_id:p[7],author_name:p[8],status:p[9]}); return [{},[]]; }
+
     if (sql.startsWith('INSERT IGNORE INTO quotation_drafts')) { if (!drafts.has(p.join(':'))) drafts.set(p.join(':'),{version:0,body:null});return [{},[]]; }
     if (sql.startsWith('SELECT version, body FROM quotation_drafts')) return [[drafts.get(p.join(':'))].filter(Boolean).map(x=>structuredClone(x)),[]];
     if (sql.startsWith('UPDATE quotation_drafts')) {

@@ -1,3 +1,4 @@
+import type { CustomerDashboard, DistributionVersion, InvoiceSource } from "@/lib/distribution-rules";
 /**
  * Typed REST client. When VITE_API_URL is set, every call hits the real
  * Express API with a JWT bearer token. Otherwise it falls back to the
@@ -84,6 +85,12 @@ async function fileToBase64(f: File): Promise<string> {
 }
 
 export const api = {
+  documentDistribution: (type: "quotation" | "invoice", id: string): Promise<DistributionVersion[]> => usingMock ? mock.documentDistribution(type, id) : http("GET", `/distribution/${type}/${encodeURIComponent(id)}`),
+  decideQuotationRevision: (id: string, version: number, approve: boolean, reason: string): Promise<{ok: boolean}> => usingMock ? mock.decideQuotationRevision(id, version, approve, reason) : http("POST", `/distribution/quotation/${encodeURIComponent(id)}/${version}/decision`, { approve, reason }),
+  retryDocumentDelivery: (type: "quotation" | "invoice", id: string, version: number): Promise<{ok: boolean}> => usingMock ? mock.retryDocumentDelivery(type, id, version) : http("POST", `/distribution/${type}/${encodeURIComponent(id)}/${version}/retry`, {}),
+  customerDashboard: (id: string): Promise<CustomerDashboard> => usingMock ? mock.customerDashboard(id) : http("GET", `/parties/${encodeURIComponent(id)}/crm`),
+  saveCommunicationPreferences: (id: string, input: CustomerDashboard["preferences"]): Promise<{ok: boolean}> => usingMock ? mock.saveCommunicationPreferences(id, input) : http("PUT", `/parties/${encodeURIComponent(id)}/communication`, input),
+  invoiceSources: (id: string): Promise<InvoiceSource[]> => usingMock ? mock.invoiceSources(id) : http("GET", `/invoices/${encodeURIComponent(id)}/sources`),
   caOverview: (orgId: string) => caHttp<{orgId:string;role:string;readOnly:boolean;counts:Record<string,number>}>("/ca/overview",orgId),
   caRecords: (orgId: string, collection: string, after?: string) => caHttp<{collection:string;records:CaRecordRow[];nextCursor:string|null}>(`/ca/records/${encodeURIComponent(collection)}${qs({after})}`,orgId),
   caRecord: (orgId: string, collection: string, id: string) => caHttp<{collection:string;record:Record<string,unknown>}>(`/ca/records/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`,orgId),

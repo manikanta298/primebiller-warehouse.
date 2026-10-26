@@ -1,3 +1,4 @@
+import { quotationContent, mayDecideRevision, normalizeWhatsappPhone, type CustomerDashboard, type DistributionVersion, type InvoiceSource } from "@/lib/distribution-rules";
 import { warehouseUnitCost, warehouseStockRow, receiveWarehouseCost } from "@/lib/warehouse-stock";
 /**
  * In-memory mock backend. Mirrors the REST API signatures in client.ts so the
@@ -304,7 +305,7 @@ function db(): Store {
     seedDc("dc104", "DC/26-27/0104", "2026-09-23", salesOrders[3]!, 0, 8000, "SVT/26-27/0271", "TS08UB9087", "Mallesh"),
   ];
   const P4 = { padding: 4, resetPerFy: true };
-  const series: Store["series"] = { SO: { prefix: "SO", ...P4 }, DC: { prefix: "DC", ...P4 }, INV: { prefix: "SVT", ...P4 }, RCT: { prefix: "RCT", ...P4 }, PO: { prefix: "PO", ...P4 }, GRN: { prefix: "GRN", ...P4 }, TRF: { prefix: "TRF", ...P4 }, ADJ: { prefix: "ADJ", ...P4 } };
+  const series: Store["seriesByOrg"][string] = { SO: { prefix: "SO", ...P4 }, DC: { prefix: "DC", ...P4 }, INV: { prefix: "SVT", ...P4 }, RCT: { prefix: "RCT", ...P4 }, PO: { prefix: "PO", ...P4 }, GRN: { prefix: "GRN", ...P4 }, TRF: { prefix: "TRF", ...P4 }, ADJ: { prefix: "ADJ", ...P4 } };
   const settings: OrgSettings = {
     legalName: "Sri Venkateswara Traders", tradeName: "SVT Building Materials", gstin: orgs[0]!.gstin, pan: orgs[0]!.gstin.slice(2, 12),
     address: "Plot 14, IDA Balanagar, Hyderabad 500037", stateCode: orgs[0]!.stateCode, phone: "040 2377 4411", email: "accounts@svt.in",
@@ -677,6 +678,64 @@ export async function listQuotations(): Promise<Quotation[]> {
 export async function getQuotation(id: string): Promise<Quotation> {
   await listQuotations(); return clone(quoteForOrg(id));
 }
+type MockDistribution = DistributionVersion & { documentType: "quotation" | "invoice"; documentId: string; customerId: string; content: string };
+const distributionKey = () => `document-distribution:${getSession()?.orgId}`;
+const mockDistributions = (): MockDistribution[] => JSON.parse(localStorage.getItem(distributionKey()) ?? "[]");
+function mockQueueDocument(type: "quotation" | "invoice", doc: Quotation | Invoice) {
+  const all = mockDistributions(), previous = all.filter(r => r.documentType === type && r.documentId === doc.id).at(-1);
+  const content = type === "quotation" ? quotationContent(doc as Quotation) : JSON.stringify(doc);
+  if (previous?.content === content || type === "invoice" && previous) return;
+  for (const row of all) if (row.documentType === type && row.documentId === doc.id && ["pending_approval", "queued", "blocked", "failed", "rejected"].includes(row.status)) row.status = "superseded";
+  all.push({ documentType: type, documentId: doc.id, customerId: doc.customerId, version: (previous?.version ?? 0) + 1,
+    status: type === "quotation" && previous ? "pending_approval" : "blocked", authoredBy: getSession()!.user.id,
+    authoredByName: userName(), createdAt: nowIso(), content, ...(type === "quotation" && previous ? {} : { error: "demo_delivery_disabled" }) });
+  localStorage.setItem(distributionKey(), JSON.stringify(all));
+}
+export async function documentDistribution(type: "quotation" | "invoice", id: string): Promise<DistributionVersion[]> {
+  if (type === "quotation") { if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot access quotations"); quoteForOrg(id); }
+  else await getInvoice(id);
+  return clone(mockDistributions().filter(r => r.documentType === type && r.documentId === id).reverse());
+}
+export async function decideQuotationRevision(id: string, version: number, approve: boolean, reason: string) {
+  await documentDistribution("quotation", id);
+  const all = mockDistributions(), row = all.filter(r => r.documentType === "quotation" && r.documentId === id).at(-1);
+  if (!row || row.version !== version || row.status !== "pending_approval" || ["cancelled", "converted"].includes(quoteForOrg(id).status)) throw new ApiError(409, "stale_revision", "Only the current pending revision can be decided");
+  if (!mayDecideRevision(role(), getSession()!.user.id, row.authoredBy)) throw new ApiError(403, "forbidden", "A different Owner or Manager must decide this revision");
+  if (reason.trim().length < 3 || reason.length > 500) throw new ApiError(422, "validation", "Enter a decision reason");
+  row.status = approve ? "blocked" : "rejected"; row.decidedBy = getSession()!.user.id; row.reason = reason.trim();
+  if (approve) row.error = "demo_delivery_disabled";
+  localStorage.setItem(distributionKey(), JSON.stringify(all)); return { ok: true };
+}
+export async function retryDocumentDelivery(type: "quotation" | "invoice", id: string, version: number): Promise<{ok: boolean}> {
+  await documentDistribution(type, id);
+  if (!can(role(), "approveQuotationRevision")) throw new ApiError(403, "forbidden", "Only Owner or Manager can retry delivery");
+  throw new ApiError(503, "demo_delivery_disabled", "Connect the backend and WhatsApp sender before delivery");
+}
+export async function customerDashboard(id: string): Promise<CustomerDashboard> {
+  if (!can(role(), "customerHistory")) throw new ApiError(403, "forbidden", "Your role cannot view full customer history");
+  const customer = await getParty(id), s = db(), org = getSession()!.orgId;
+  if (!["customer", "both"].includes(customer.kind)) throw new ApiError(404, "not_found", "Customer not found");
+  const filter = <T extends { id: string; customerId: string }>(list: T[], map: Record<string, string>) => clone(list.filter(d => map[d.id] === org && d.customerId === id));
+  return { customer, preferences: JSON.parse(localStorage.getItem(`communication:${org}:${id}`) ?? '{"enabled":false,"phone":"","evidence":""}'),
+    quotations: filter(s.quotations, s.quotationOrgIds), orders: filter(s.salesOrders, s.salesOrderOrgIds), invoices: filter(s.invoices, s.invoiceOrgIds),
+    deliveries: filter(s.challans, s.challanOrgIds), receipts: filter(s.receipts, s.receiptOrgIds), messages: mockDistributions().filter(r => r.customerId === id).reverse().slice(0, 200) };
+}
+export async function saveCommunicationPreferences(id: string, input: CustomerDashboard["preferences"]) {
+  if (!can(role(), "approveQuotationRevision")) throw new ApiError(403, "forbidden", "Only Owner or Manager can record consent");
+  await getParty(id);
+  if (input.evidence.trim().length < 3 || input.evidence.length > 500 || input.enabled && !normalizeWhatsappPhone(input.phone)) throw new ApiError(422, "validation", "Use an international number and permission evidence");
+  localStorage.setItem(`communication:${getSession()!.orgId}:${id}`, JSON.stringify(input)); return { ok: true };
+}
+export async function invoiceSources(id: string): Promise<InvoiceSource[]> {
+  const inv = await getInvoice(id);
+  if (inv.sources) return clone(inv.sources);
+  const sources: InvoiceSource[] = [];
+  for (const ref of inv.challans) {
+    const c = db().challans.find(c => c.id === ref.id && db().challanOrgIds[c.id] === getSession()!.orgId);
+    if (c) for (const l of c.lines) for (const a of l.allocations) sources.push({ itemId: l.itemId, itemName: l.itemName, qty: a.qty, uom: l.uom, warehouseId: c.godownId, warehouseName: c.godownName, challanId: c.id, challanNumber: c.number, batchNo: a.batchNo ?? "" });
+  }
+  return clone(sources);
+}
 const quoteDraftKey = (key: string) => `quotation-draft:${getSession()?.orgId}:${getSession()?.user.id}:${key}`;
 export async function getQuotationDraft(key: string): Promise<QuotationDraft> {
   if (!can(role(), "salesOrders")) throw new ApiError(403, "forbidden", "Your role cannot edit quotations");
@@ -724,6 +783,7 @@ export async function saveQuotation(input: QuotationInput, draftVersion?: number
   if (previous) Object.assign(previous, q);
   else { s.quotationCounters[counterKey] = seq; s.quotations.push(q); s.quotationOrgIds[q.id] = orgId; }
   if (draftVersion !== undefined) localStorage.setItem(quoteDraftKey(draftKey), JSON.stringify({ version: draftVersion + 1, input: null }));
+  mockQueueDocument("quotation", q);
   return clone(q);
 }
 export async function quotationAction(id: string, action: "issue" | "accept" | "cancel"): Promise<Quotation> {
@@ -1260,6 +1320,8 @@ export async function issueInvoice(input: IssueInvoiceInput): Promise<Invoice> {
   }
   refresh(inv);
   s.invSeq = seq;
+  inv.sources = cs.flatMap(c => c.lines.flatMap(l => l.allocations.map(a => ({ itemId: l.itemId, itemName: l.itemName, qty: a.qty, uom: l.uom, warehouseId: c.godownId, warehouseName: c.godownName, challanId: c.id, challanNumber: c.number, batchNo: a.batchNo ?? "" }))));
+  mockQueueDocument("invoice", inv);
   s.invoices.push(inv);
   s.invoiceOrgIds[inv.id] = orgId;
   const party = s.parties.find((p) => p.id === inv.customerId);
@@ -1495,6 +1557,7 @@ export async function postGrn(input: GrnInput): Promise<Grn> {
   const earlier = grnsForOrg(s.grns, s.grnOrgIds, orgId);
   const problems = grnDraftProblems(input, sup, g, catalog, po, new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10), earlier);
   if (problems.length) throw new ApiError(422, "invalid_grn", problems[0]!);
+  if (!g || !sup) throw new ApiError(422, "invalid_grn", "Supplier or warehouse is unavailable");
   const lines = input.lines;
   const values = lines.map((l) => (l.received - l.rejected) * l.rate);
   const shares = apportionFreight(values, input.freight);
@@ -1678,7 +1741,7 @@ function adjChecks(s: Store, godownId: string, lines: AdjustmentInput["lines"]) 
   return lines.map((l) => {
     const it = s.items.find((i) => i.id === l.itemId && s.itemOrgIds[i.id] === orgId);
     if (!it) throw new ApiError(404, "not_found", "Item not found");
-    const b = l.batchNo ? it.batches.find((x) => x.batchNo === l.batchNo.trim() && x.godownId === godownId) : undefined;
+    const b = l.batchNo ? it.batches.find((x) => x.batchNo === l.batchNo?.trim() && x.godownId === godownId) : undefined;
     const stock = it.stock.find((x) => x.godownId === godownId);
     return { itemId: it.id, itemName: it.name, active: it.active, direction: l.direction, qty: l.qty, onHand: stock?.onHand ?? 0, held: stock?.held ?? 0,
       unitCost: l.direction === "up" ? l.unitCost : warehouseUnitCost(it, godownId), trackBatches: it.trackBatches, batchNo: l.batchNo, batchQty: b?.qty };
@@ -1845,7 +1908,7 @@ export async function saveSettings(input: OrgSettingsInput): Promise<OrgSettings
   const old = s.settingsByOrg[orgId ?? ""];
   if (!old) throw new ApiError(404, "not_found", "Organisation settings not found");
   s.settingsByOrg[orgId!] = { ...input, stateCode: stateFromGstin(input.gstin) ?? input.stateCode, ewbThreshold: 50000, reasonCodes: input.reasonCodes.map((r) => ({ ...r, code: r.code.trim().toUpperCase() })), gsp: { ...gsp, secretSet: old.gsp.secretSet || !!secret } };
-  return clone(s.settingsByOrg[orgId!]);
+  return clone(s.settingsByOrg[orgId!]!);
 }
 
 // ---------- Print profiles ----------
