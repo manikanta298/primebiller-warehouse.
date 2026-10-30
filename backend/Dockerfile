@@ -1,7 +1,9 @@
 FROM node:22-bookworm-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# Coolify may inject NODE_ENV=production/omit=dev during build. The compiler
+# and tsx migration runner are required even when building a production image.
+RUN npm ci --include=dev --no-audit --no-fund
 COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
